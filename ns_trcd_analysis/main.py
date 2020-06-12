@@ -21,6 +21,21 @@ def cli():
 @click.argument("input_dir", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.argument("outfile_name", type=click.Path(file_okay=True, dir_okay=False))
 def assemble(input_dir, outfile_name):
+    """Read a directory of experiment data into an HDF5 file.
+
+    \b
+    The format of the input directory should be as follows:
+    <input dir>
+        <shot dir> (one for each shot)
+            par.npy
+            perp.npy
+            ref.npy
+
+    The resulting HDF5 file will have a dataset called 'data' which has the following shape:
+    (<points>, <channels>, <shots>, <wavelengths>, <pump states>)
+
+    For the moment both <wavelengths> and <pump states> are 1 and thus don't need to be there, but are included for backwards compatibility.
+    """
     in_dir = Path(input_dir)
     outfile = in_dir / outfile_name
     raw2hdf5.ingest(in_dir, outfile)
@@ -34,6 +49,10 @@ def assemble(input_dir, outfile_name):
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=True, dir_okay=False), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV of the average dA. Only valid with the '-a' option.")
 def da(input_file, output_file, average, subtract_background, fig, txt):
+    """Compute dA from a raw data file.
+
+    The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
+    """
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
