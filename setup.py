@@ -8,6 +8,8 @@ setup(
     install_requires=[
         'Click',
         'numpy',
+        'scipy',
+        'matplotlib',
         'h5py',
     ],
     entry_points='''
