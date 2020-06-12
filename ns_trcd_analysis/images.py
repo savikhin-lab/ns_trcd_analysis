@@ -1,14 +1,7 @@
 import click
 import numpy as np
 import matplotlib.pyplot as plt
-from enum import Enum
 from . import core
-
-
-class Channels(Enum):
-    PAR = 0
-    PERP = 1
-    REF = 2
 
 
 def dump_raw_images(path, channel, arr) -> None:

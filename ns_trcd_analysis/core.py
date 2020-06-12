@@ -1,5 +1,33 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from enum import Enum
+
+
+class Channels(Enum):
+    PAR = 0
+    PERP = 1
+    REF = 2
+
+
+CHANNEL_MAP = {
+    "par": Channels.PAR,
+    "perp": Channels.PERP,
+    "ref": Channels.REF,
+}
+
+
+def valid_channel(channel_str) -> bool:
+    """Determine whether a string represents a valid channel.
+    """
+    if channel_str is None:
+        click.echo("A channel specifier is required when the data format is 'raw'.", err=True)
+        return False
+    try:
+        chan = CHANNEL_MAP[channel_str]
+    except KeyError:
+        click.echo("Invalid channel name.", err=True)
+        return False
+    return True
 
 
 def count_subdirs(path) -> int:
