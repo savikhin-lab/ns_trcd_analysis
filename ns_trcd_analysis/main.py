@@ -4,7 +4,9 @@ import numpy as np
 from pathlib import Path
 from . import core
 from . import delta_a
+from . import images
 from . import raw2hdf5
+from .images import Channels
 
 
 POINTS = 20_000
@@ -59,5 +61,39 @@ def da(input_file, output_file, average, subtract_background, fig, txt):
     return
 
 
+@click.command()
+@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.argument("output_dir", type=click.Path(file_okay=False, dir_okay=True))
+@click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
+@click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
+def inspect(input_file, output_dir, format, channel):
+    """Generate images of each shot in a data file.
+
+    This works for both dA and raw data files (specified with the '-d' flag).
+    """
+    with h5py.File(input_file, "r") as infile:
+        dataset = infile["data"]
+        root_dir = Path(output_dir)
+        if format == "da":
+            images.dump_da_images(root_dir, dataset)
+        elif format == "raw":
+            if not channel:
+                click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
+                return
+            if channel == "par":
+                images.dump_raw_images(root_dir, Channels.PAR, dataset)
+            elif channel == "perp":
+                images.dump_raw_images(root_dir, Channels.PERP, dataset)
+            elif channel == "ref":
+                images.dump_raw_images(root_dir, Channels.REF, dataset)
+            else:
+                click.echo("Invalid channel or incorrect data format", err=True)
+                return
+        else:
+            click.echo("Invalid data format", err=True)
+            return
+
+
 cli.add_command(assemble)
 cli.add_command(da)
+cli.add_command(inspect)
