@@ -35,7 +35,7 @@ def assemble(input_dir, outfile_name):
     The resulting HDF5 file will have a dataset called 'data' which has the following shape:
     (<points>, <channels>, <shots>, <wavelengths>, <pump states>)
 
-    For the moment both <wavelengths> and <pump states> are 1 and thus don't need to be there, but are included for backwards compatibility.
+    For the moment <pump states> is 1 and thus doesn't need to be there, but is included for backwards compatibility.
     """
     in_dir = Path(input_dir)
     outfile = in_dir / outfile_name
