@@ -36,14 +36,15 @@ def average(ds) -> np.ndarray:
 def subtract_background(dataset) -> None:
     """Subtract a linear background from a set of dA curves.
     """
-    points, shots, _ = dataset.shape
+    points, shots, wls = dataset.shape
     x = np.arange(points)
     x_before_zero = x[:BEFORE_ZERO_POINTS]
     for shot_num in range(shots):
-        da_before_zero = dataset[:BEFORE_ZERO_POINTS, shot_num, 0]
-        (slope, intercept), _ = curve_fit(line, x_before_zero, da_before_zero)
-        background = line(x, slope, intercept)
-        dataset[:, shot_num, 0] -= background
+        for wl_num in range(wls):
+            da_before_zero = dataset[:BEFORE_ZERO_POINTS, shot_num, wl_num]
+            (slope, intercept), _ = curve_fit(line, x_before_zero, da_before_zero)
+            background = line(x, slope, intercept)
+            dataset[:, shot_num, wl_num] -= background
     return
 
 
