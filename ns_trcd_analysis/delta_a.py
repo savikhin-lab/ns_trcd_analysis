@@ -16,13 +16,14 @@ def compute_da(input_ds, output_ds):
     """
     _, _, shots, wavelengths, _ = input_ds.shape
     for shot_num in range(shots):
-        par = input_ds[:, 0, shot_num, 0, 0]
-        ref = input_ds[:, 2, shot_num, 0, 0]
-        before_zero_par = par[:BEFORE_ZERO_POINTS]
-        before_zero_ref = ref[:BEFORE_ZERO_POINTS]
-        without_pump = np.mean(before_zero_par / before_zero_ref)
-        da = -np.log10(par / ref / without_pump)
-        output_ds[:, shot_num, 0] = da
+        for wl_num in range(wavelengths):
+            par = input_ds[:, 0, shot_num, wl_num, 0]
+            ref = input_ds[:, 2, shot_num, wl_num, 0]
+            before_zero_par = par[:BEFORE_ZERO_POINTS]
+            before_zero_ref = ref[:BEFORE_ZERO_POINTS]
+            without_pump = np.mean(before_zero_par / before_zero_ref)
+            da = -np.log10(par / ref / without_pump)
+            output_ds[:, shot_num, wl_num] = da
     return
 
 
