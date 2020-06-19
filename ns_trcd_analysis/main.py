@@ -145,15 +145,12 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wave
             if not core.valid_channel(channel):
                 return
             chan = core.CHANNEL_MAP[channel]
-            s = slices.raw_slice_at_index(infile, chan, s_idx, wl_idx)
+            s = infile["data"][s_idx, chan.value, :, wl_idx, 0]
         elif format == "da":
             if channel is not None:
                 click.echo("Channel specifiers are only valid for the 'raw' data format.", err=True)
                 return
-            s = slices.da_slice_at_index(infile, s_idx, wl_idx)
-        if s is None:
-            click.echo("Slice falls outside the range of experimental data.", err=True)
-            return
+            s = infile["data"][s_idx, :, wl_idx]
         shots = np.arange(len(s))
         if txtpath:
             txtdata = np.empty((len(shots), 2))

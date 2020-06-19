@@ -40,28 +40,6 @@ def index_nearest_to_value(arr, value) -> Union[int, None]:
             return current_best_idx
 
 
-def raw_slice_at_index(infile, channel, t_idx, wl_idx) -> np.ndarray:
-    """Return a slice along the shot-axis for the given channel and index along the time axis.
-    """
-    dataset = infile["data"]
-    points, _, num_shots, _, _ = dataset.shape
-    slice_values = np.empty(num_shots)
-    for shot_idx in range(num_shots):
-        slice_values[shot_idx] = dataset[t_idx, channel.value, shot_idx, wl_idx, 0]
-    return slice_values
-
-
-def da_slice_at_index(infile, t_idx, wl_idx) -> np.ndarray:
-    """Return a slice along the shot-axis at the given index along the time axis.
-    """
-    dataset = infile["data"]
-    points, num_shots, _ = dataset.shape
-    slice_values = np.empty(num_shots)
-    for shot_idx in range(num_shots):
-        slice_values[shot_idx] = dataset[t_idx, shot_idx, wl_idx]
-    return slice_values
-
-
 def abs_slice_at_index(infile, t_idx, wl_idx) -> np.ndarray:
     """Return an absorption slice along the shot axis.
     """
