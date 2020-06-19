@@ -6,16 +6,34 @@ from typing import List
 from .core import count_subdirs
 
 
-def ingest(input_dir, output_file_path) -> None:
+def ingest(input_dir, output_file_path, incremental) -> None:
+    """Read the contents of an experiment directory into an HDF5 file.
+
+    If 'incremental' is True, then each shot will be written to the HDF5 file
+    after it is read, otherwise data is read into a temporary array and saved at
+    the very end. The incremental approach is much slower, but is useful when the
+    machine doing the analysis has limited memory.
+
+    The directory must have this layout:
+    <input dir>
+        <shot dir> (one for each shot)
+            par.npy
+            perp.npy
+            ref.npy
+    
+    The HDF5 file will have two datasets: "data" and "wavelengths". The "data" dataset contains
+    one large array with all of the experiment data. The array has these dimensions:
+    (20000, 3, <num shots>, <num wavelengths>, 1)
+
+    At the experiment time resolution (20ns for 400us) you get 20,000 points. There are 3 channels
+    (parallel, perpendicular, and reference). The last dimension is the number of pump states. This
+    is now 1 (there's always a pump state), but it is retained for backwards compatibility.
+    """
     num_shots = count_subdirs(input_dir)
     wls = collect_wavelengths(input_dir / "1")
     with h5py.File(output_file_path, "w") as outfile:
-        # Axes:
-        # 0 - Time
-        # 1 - Channel
-        # 2 - Shot number
-        # 3 - Wavelength
-        # 4 - Pump state
+        if not incremental:
+            tmp_arr = np.empty((20_000, 3, num_shots, len(wls), 1))
         outfile.create_dataset("data", (20_000, 3, num_shots, len(wls), 1))
         data = outfile["data"]
         outfile.create_dataset("wavelengths", (len(wls),), data=wls)
@@ -24,22 +42,18 @@ def ingest(input_dir, output_file_path) -> None:
             for shot_index, wl_index in indices:
                 datadir = input_dir / f"{shot_index}" / f"{wls[wl_index]}"
                 # np.s_[...] generates the indices that you would normally get by slicing a NumPy array
-                par = np.load(datadir / "par.npy")
-                data.write_direct(par, np.s_[:], np.s_[:, 0, shot_index - 1, wl_index, 0])
-                perp = np.load(datadir / "perp.npy")
-                data.write_direct(perp, np.s_[:], np.s_[:, 1, shot_index - 1, wl_index, 0])
-                ref = np.load(datadir / "ref.npy")
-                data.write_direct(ref, np.s_[:], np.s_[:, 2, shot_index - 1, wl_index, 0])
-        
-
-
-def store_shot(arr, path, shot_idx, wl_idx) -> None:
-    par = np.load(path / "par.npy")
-    perp = np.load(path / "perp.npy")
-    ref = np.load(path / "ref.npy")
-    arr[:, 0, shot_idx, wl_idx, 0] = par
-    arr[:, 1, shot_idx, wl_idx, 0] = perp
-    arr[:, 2, shot_idx, wl_idx, 0] = ref
+                if incremental:
+                    shotdata = np.empty((20_000, 3))
+                    shotdata[:, 0] = np.load(datadir / "par.npy")
+                    shotdata[:, 1] = np.load(datadir / "perp.npy")
+                    shotdata[:, 2] = np.load(datadir / "ref.npy")
+                    data.write_direct(shotdata, np.s_[:, :], np.s_[:, :, shot_index - 1, wl_index, 0])
+                else:
+                    tmp_arr[:, 0, shot_index - 1, wl_index, 0] = np.load(datadir / "par.npy")
+                    tmp_arr[:, 1, shot_index - 1, wl_index, 0] = np.load(datadir / "perp.npy")
+                    tmp_arr[:, 2, shot_index - 1, wl_index, 0] = np.load(datadir / "ref.npy")
+        if not incremental:
+            data.write_direct(tmp_arr, np.s_[:, :, :, :, :], np.s_[:, :, :, :, :])
 
 
 def collect_wavelengths(path) -> List[int]:

@@ -21,7 +21,8 @@ def cli():
 @click.command()
 @click.argument("input_dir", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.argument("outfile_name", type=click.Path(file_okay=True, dir_okay=False))
-def assemble(input_dir, outfile_name):
+@click.option("-i", "--incremental", is_flag=True, help="Write shots to the file channel by channel, rather than shot by shot.")
+def assemble(input_dir, outfile_name, incremental):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -39,7 +40,7 @@ def assemble(input_dir, outfile_name):
     """
     in_dir = Path(input_dir)
     outfile = in_dir / outfile_name
-    raw2hdf5.ingest(in_dir, outfile)
+    raw2hdf5.ingest(in_dir, outfile, incremental)
 
 
 @click.command()
