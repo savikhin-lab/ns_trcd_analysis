@@ -4,7 +4,7 @@ from typing import Union
 from . import core
 
 
-def valid_shot_slice_point(slice_time, slice_index) -> bool:
+def valid_shot_slice_point(slice_time, slice_index, points) -> bool:
     """Ensure that an valid combination of slice time and/or slice index has been provided.
     """
     if (slice_time is None) and (slice_index is None):
@@ -12,6 +12,9 @@ def valid_shot_slice_point(slice_time, slice_index) -> bool:
         return False
     if (slice_time is not None) and (slice_index is not None):
         click.echo("Specify slice index or time, but not both", err=True)
+        return False
+    if (slice_index is not None) and ((slice_index < 0) or (slice_index >= 20_000)):
+        click.echo("Slice index out of range.")
         return False
     return True
 
@@ -37,61 +40,23 @@ def index_nearest_to_value(arr, value) -> Union[int, None]:
             return current_best_idx
 
 
-def raw_slice_at_time(infile, channel, t) -> Union[np.ndarray, None]:
-    """Return a slice along the shot-axis for the given time and channel.
-    """
-    ts = core.time_axis()
-    slice_index = index_nearest_to_value(ts, t)
-    if slice_index is None:
-        return None
-    dataset = infile["data"]
-    _, _, num_shots, _, _ = dataset.shape
-    slice_values = np.empty(num_shots)
-    for shot in range(num_shots):
-        slice_values[shot] = dataset[slice_index, channel.value, shot, 0, 0]
-    return slice_values
-
-
-def raw_slice_at_index(infile, channel, idx) -> Union[np.ndarray, None]:
+def raw_slice_at_index(infile, channel, t_idx, wl_idx) -> np.ndarray:
     """Return a slice along the shot-axis for the given channel and index along the time axis.
     """
     dataset = infile["data"]
     points, _, num_shots, _, _ = dataset.shape
-    if idx < 0:
-        return None
-    if idx > points:
-        return None
     slice_values = np.empty(num_shots)
-    for shot in range(num_shots):
-        slice_values[shot] = dataset[idx, channel.value, shot, 0, 0]
+    for shot_idx in range(num_shots):
+        slice_values[shot_idx] = dataset[t_idx, channel.value, shot_idx, wl_idx, 0]
     return slice_values
 
 
-def da_slice_at_time(infile, t) -> Union[np.ndarray, None]:
-    """Return a slice along the shot-axis at the given time.
-    """
-    ts = core.time_axis()
-    slice_index = index_nearest_to_value(ts, t)
-    if slice_index is None:
-        return None
-    dataset = infile["data"]
-    _, num_shots, _ = dataset.shape
-    slice_values = np.empty(num_shots)
-    for shot in range(num_shots):
-        slice_values[shot] = dataset[slice_index, shot, 0]
-    return slice_values
-
-
-def da_slice_at_index(infile, idx) -> Union[np.ndarray, None]:
+def da_slice_at_index(infile, t_idx, wl_idx) -> np.ndarray:
     """Return a slice along the shot-axis at the given index along the time axis.
     """
     dataset = infile["data"]
     points, num_shots, _ = dataset.shape
-    if idx < 0:
-        return None
-    if idx > points:
-        return None
     slice_values = np.empty(num_shots)
-    for shot in range(num_shots):
-        slice_values[shot] = dataset[idx, shot, 0]
+    for shot_idx in range(num_shots):
+        slice_values[shot_idx] = dataset[t_idx, shot_idx, wl_idx]
     return slice_values

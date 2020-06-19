@@ -123,10 +123,20 @@ def inspect(input_file, output_dir, format, channel, wavelength):
 def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wavelength):
     """Select the same point in time for every shot in the dataset at a fixed wavelength.
     """
-    if (txtpath is None) and (figpath is None):
-        click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
-        return
     with h5py.File(input_file, "r") as infile:
+        if (txtpath is None) and (figpath is None):
+            click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
+            return
+        points = infile["data"].shape[0]
+        if not slices.valid_shot_slice_point(stime, sindex, points):
+            return
+        if sindex is None:
+            s_idx = slices.index_nearest_to_value(core.time_axis(), stime)
+            if s_idx is None:
+                click.echo("Slice time is out of range.")
+                return
+        else:
+            s_idx = sindex
         wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
         if wl_idx is None:
             click.echo("Wavelength not found.")
@@ -135,18 +145,12 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wave
             if not core.valid_channel(channel):
                 return
             chan = core.CHANNEL_MAP[channel]
-            if stime is not None:
-                s = slices.raw_slice_at_time(infile, chan, stime)
-            else:
-                s = slices.raw_slice_at_index(infile, chan, sindex)
+            s = slices.raw_slice_at_index(infile, chan, s_idx, wl_idx)
         elif format == "da":
             if channel is not None:
                 click.echo("Channel specifiers are only valid for the 'raw' data format.", err=True)
                 return
-            if stime is not None:
-                s = slices.da_slice_at_time(infile, stime)
-            else:
-                s = slices.da_slice_at_index(infile, sindex)
+            s = slices.da_slice_at_index(infile, s_idx, wl_idx)
         if s is None:
             click.echo("Slice falls outside the range of experimental data.", err=True)
             return
