@@ -6,10 +6,11 @@
 #
 import click
 import numpy as np
+from itertools import product
 from scipy.optimize import curve_fit
 
 
-BEFORE_ZERO_POINTS = 1_500
+POINTS_BEFORE_PUMP = 1_500
 
 
 def compute_da(input_ds, output_ds, incremental):
@@ -26,15 +27,15 @@ def compute_da(input_ds, output_ds, incremental):
                 if incremental:
                     par = input_ds[:, 0, shot_idx, wl_idx, 0]
                     ref = input_ds[:, 2, shot_idx, wl_idx, 0]
-                    before_zero_par = par[:BEFORE_ZERO_POINTS]
-                    before_zero_ref = ref[:BEFORE_ZERO_POINTS]
+                    before_zero_par = par[:POINTS_BEFORE_PUMP]
+                    before_zero_ref = ref[:POINTS_BEFORE_PUMP]
                     without_pump = np.mean(before_zero_par / before_zero_ref)
                     output_ds[:, shot_idx, wl_idx] = -np.log10(par / ref / without_pump)
                 else:
                     par = tmp_raw[:, 0, shot_idx, wl_idx, 0]
                     ref = tmp_raw[:, 2, shot_idx, wl_idx, 0]
-                    before_zero_par = par[:BEFORE_ZERO_POINTS]
-                    before_zero_ref = ref[:BEFORE_ZERO_POINTS]
+                    before_zero_par = par[:POINTS_BEFORE_PUMP]
+                    before_zero_ref = ref[:POINTS_BEFORE_PUMP]
                     without_pump = np.mean(before_zero_par / before_zero_ref)
                     tmp_da[:, shot_idx, wl_idx] = -np.log10(par / ref / without_pump)
     if not incremental:
@@ -52,18 +53,31 @@ def average(f, incremental) -> np.ndarray:
     return
 
 
-def subtract_background(dataset) -> None:
+def subtract_background(f, incremental) -> None:
     """Subtract a linear background from a set of dA curves.
     """
-    points, shots, wls = dataset.shape
+    da_ds = f["data"]
+    points, shots, wls = da_ds.shape
     x = np.arange(points)
-    x_before_zero = x[:BEFORE_ZERO_POINTS]
-    for shot_num in range(shots):
-        for wl_num in range(wls):
-            da_before_zero = dataset[:BEFORE_ZERO_POINTS, shot_num, wl_num]
-            (slope, intercept), _ = curve_fit(line, x_before_zero, da_before_zero)
+    t_before_pump = x[:POINTS_BEFORE_PUMP]
+    if not incremental:
+        tmp_da = np.empty((points, shots, wls))
+        da_ds.read_direct(tmp_da)
+    meas_indices = [x for x in product(range(shots), range(wls))]
+    with click.progressbar(meas_indices, label="Subtracting background") as indices:
+        for shot_idx, wl_idx in indices:
+            if incremental:
+                da_before_pump = da_ds[:POINTS_BEFORE_PUMP, shot_idx, wl_idx]
+            else:
+                da_before_pump = tmp_da[:POINTS_BEFORE_PUMP, shot_idx, wl_idx]
+            (slope, intercept), _ = curve_fit(line, t_before_pump, da_before_pump)
             background = line(x, slope, intercept)
-            dataset[:, shot_num, wl_num] -= background
+            if incremental:
+                da_ds[:, shot_idx, wl_idx] -= background
+            else:
+                tmp_da[:, shot_idx, wl_idx] -= background
+    if not incremental:
+        da_ds.write_direct(tmp_da)
     return
 
 

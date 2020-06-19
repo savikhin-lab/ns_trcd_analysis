@@ -62,7 +62,7 @@ def da(input_file, output_file, incremental, average, subtract_background, fig, 
             outfile.create_dataset("data", (points, shots, wavelengths))
             delta_a.compute_da(infile["data"], outfile["data"], incremental)
             if subtract_background:
-                delta_a.subtract_background(outfile["data"])
+                delta_a.subtract_background(outfile, incremental)
             if average:
                 delta_a.average(outfile, incremental)
                 ts = core.time_axis()
