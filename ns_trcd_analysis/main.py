@@ -46,11 +46,12 @@ def assemble(input_dir, outfile_name, incremental):
 @click.command()
 @click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.argument("output_file", type=click.Path(file_okay=True, dir_okay=False))
+@click.option("-i", "--incremental", is_flag=True, help="Read/write one shot at a time. This is slower, but uses significantly less memory.")
 @click.option("-a", "--average", is_flag=True, help="Average dA and save the result.")
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=True, dir_okay=False), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV of the average dA. Only valid with the '-a' option.")
-def da(input_file, output_file, average, subtract_background, fig, txt):
+def da(input_file, output_file, incremental, average, subtract_background, fig, txt):
     """Compute dA from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -59,11 +60,11 @@ def da(input_file, output_file, average, subtract_background, fig, txt):
         with h5py.File(input_file, "r") as infile:
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
             outfile.create_dataset("data", (points, shots, wavelengths))
-            delta_a.compute_da(infile["data"], outfile["data"])
+            delta_a.compute_da(infile["data"], outfile["data"], incremental)
             if subtract_background:
                 delta_a.subtract_background(outfile["data"])
             if average:
-                avg = delta_a.average(outfile["data"])
+                delta_a.average(outfile, incremental)
                 ts = core.time_axis()
                 if txt:
                     outdata = np.empty((POINTS, 2))
