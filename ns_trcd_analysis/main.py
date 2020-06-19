@@ -49,8 +49,8 @@ def assemble(input_dir, outfile_name, incremental):
 @click.option("-i", "--incremental", is_flag=True, help="Read/write one shot at a time. This is slower, but uses significantly less memory.")
 @click.option("-a", "--average", is_flag=True, help="Average dA and save the result.")
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
-@click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=True, dir_okay=False), help="Save a figure of the average dA. Only valid with the '-a' option.")
-@click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV of the average dA. Only valid with the '-a' option.")
+@click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
+@click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
 def da(input_file, output_file, incremental, average, subtract_background, fig, txt):
     """Compute dA from a raw data file.
 
