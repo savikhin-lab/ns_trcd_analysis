@@ -207,8 +207,54 @@ def wlslice(input_file, figpath, txtpath, stime, sindex):
         return
 
 
+@click.command()
+@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
+@click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
+@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
+@click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
+@click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to create a slice of.")
+def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
+    """Create a slice of the absorption for a specific time and wavelength.
+
+    Note: This command is only valid for raw data.
+    """
+    with h5py.File(input_file, "r") as infile:
+        if len(infile["data"].shape) != 5:
+            click.echo("This command only works with raw data. (Incorrect number of dimensions).")
+            return
+        if (txtpath is None) and (figpath is None):
+            click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
+            return
+        points = infile["data"].shape[0]
+        if not slices.valid_shot_slice_point(stime, sindex, points):
+            return
+        if sindex is None:
+            s_idx = slices.index_nearest_to_value(core.time_axis(), stime)
+            if s_idx is None:
+                click.echo("Slice time is out of range.")
+                return
+        else:
+            s_idx = sindex
+        wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+        if wl_idx is None:
+            click.echo("Wavelength not found.")
+            return
+        s = slices.abs_slice_at_index(infile, s_idx, wl_idx)
+        shots = np.arange(len(s))
+        if txtpath:
+            txtdata = np.empty((len(shots), 2))
+            txtdata[:, 0] = shots
+            txtdata[:, 1] = s
+            core.save_txt(txtdata, txtpath)
+        if figpath:
+            core.save_fig(shots, s, figpath)
+        return
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(inspect)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
+cli.add_command(absslice)

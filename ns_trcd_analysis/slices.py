@@ -60,3 +60,15 @@ def da_slice_at_index(infile, t_idx, wl_idx) -> np.ndarray:
     for shot_idx in range(num_shots):
         slice_values[shot_idx] = dataset[t_idx, shot_idx, wl_idx]
     return slice_values
+
+
+def abs_slice_at_index(infile, t_idx, wl_idx) -> np.ndarray:
+    """Return an absorption slice along the shot axis.
+    """
+    ds = infile["data"]
+    shots = ds.shape[1]
+    slice_values = np.empty(shots)
+    par = ds[t_idx, 0, :, wl_idx, 0]
+    ref = ds[t_idx, 2, :, wl_idx, 0]
+    absorption = -np.log10(par / ref)
+    return absorption
