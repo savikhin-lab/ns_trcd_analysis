@@ -107,15 +107,8 @@ def inspect(input_file, output_dir, format, channel, wavelength):
             if not channel:
                 click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
                 return
-            if channel == "par":
-                images.dump_raw_images(root_dir, Channels.PAR, dataset, wl_idx)
-            elif channel == "perp":
-                images.dump_raw_images(root_dir, Channels.PERP, dataset, wl_idx)
-            elif channel == "ref":
-                images.dump_raw_images(root_dir, Channels.REF, dataset, wl_idx)
-            else:
-                click.echo("Invalid channel or incorrect data format", err=True)
-                return
+            chan = core.CHANNEL_MAP[channel]
+            images.dump_raw_images(root_dir, chan, dataset, wl_idx)
         else:
             click.echo("Invalid data format", err=True)
             return
