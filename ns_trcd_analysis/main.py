@@ -85,15 +85,12 @@ def da(input_file, output_file, incremental, average, subtract_background, fig, 
 @click.argument("output_dir", type=click.Path(file_okay=False, dir_okay=True))
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
-@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
+@click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to inspect.")
 def inspect(input_file, output_dir, format, channel, wavelength):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
-    if wavelength is None:
-        click.echo("A wavelength is required. See the '-w' option.")
-        return
     with h5py.File(input_file, "r") as infile:
         wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
         if wl_idx is None:
@@ -116,24 +113,16 @@ def inspect(input_file, output_dir, format, channel, wavelength):
 
 @click.command()
 @click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
-@click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to slice.")
+@click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), required=True, help="The format of the data file.")
+@click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), required=True, help="If the format of the data is 'raw', which channel to slice.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
 @click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
-@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to create a slice of.")
+@click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to create a slice of.")
 def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wavelength):
     """Select the same point in time for every shot in the dataset at a fixed wavelength.
     """
-    if wavelength is None:
-        click.echo("A wavelength is required. See the '-w' option.")
-        return
-    if format is None:
-        click.echo("A format specifier is required. See the '-d' option.", err=True)
-        return
-    if not slices.valid_shot_slice_point(stime, sindex):
-        return
     if (txtpath is None) and (figpath is None):
         click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
         return
