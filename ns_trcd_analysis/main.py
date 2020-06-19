@@ -129,9 +129,13 @@ def inspect(input_file, output_dir, format, channel, wavelength):
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
 @click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
-def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex):
+@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to create a slice of.")
+def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wavelength):
     """Select the same point in time for every shot in the dataset at a fixed wavelength.
     """
+    if wavelength is None:
+        click.echo("A wavelength is required. See the '-w' option.")
+        return
     if format is None:
         click.echo("A format specifier is required. See the '-d' option.", err=True)
         return
@@ -140,33 +144,38 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex):
     if (txtpath is None) and (figpath is None):
         click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
         return
-    if format == "raw":
-        if not core.valid_channel(channel):
+    with h5py.File(input_file, "r") as infile:
+        wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+        if wl_idx is None:
+            click.echo("Wavelength not found.")
             return
-        chan = core.CHANNEL_MAP[channel]
-        if stime is not None:
-            s = slices.raw_slice_at_time(input_file, chan, stime)
-        else:
-            s = slices.raw_slice_at_index(input_file, chan, sindex)
-    elif format == "da":
-        if channel is not None:
-            click.echo("Channel specifiers are only valid for the 'raw' data format.", err=True)
+        if format == "raw":
+            if not core.valid_channel(channel):
+                return
+            chan = core.CHANNEL_MAP[channel]
+            if stime is not None:
+                s = slices.raw_slice_at_time(infile, chan, stime)
+            else:
+                s = slices.raw_slice_at_index(infile, chan, sindex)
+        elif format == "da":
+            if channel is not None:
+                click.echo("Channel specifiers are only valid for the 'raw' data format.", err=True)
+                return
+            if stime is not None:
+                s = slices.da_slice_at_time(infile, stime)
+            else:
+                s = slices.da_slice_at_index(infile, sindex)
+        if s is None:
+            click.echo("Slice falls outside the range of experimental data.", err=True)
             return
-        if stime is not None:
-            s = slices.da_slice_at_time(input_file, stime)
-        else:
-            s = slices.da_slice_at_index(input_file, sindex)
-    if s is None:
-        click.echo("Slice falls outside the range of experimental data.", err=True)
-        return
-    shots = np.arange(len(s))
-    if txtpath:
-        txtdata = np.empty((len(shots), 2))
-        txtdata[:, 0] = shots
-        txtdata[:, 1] = s
-        core.save_txt(txtdata, txtpath)
-    if figpath:
-        core.save_fig(shots, s, figpath)
+        shots = np.arange(len(s))
+        if txtpath:
+            txtdata = np.empty((len(shots), 2))
+            txtdata[:, 0] = shots
+            txtdata[:, 1] = s
+            core.save_txt(txtdata, txtpath)
+        if figpath:
+            core.save_fig(shots, s, figpath)
     return
 
 

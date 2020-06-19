@@ -37,65 +37,61 @@ def index_nearest_to_value(arr, value) -> Union[int, None]:
             return current_best_idx
 
 
-def raw_slice_at_time(fname, channel, t) -> Union[np.ndarray, None]:
+def raw_slice_at_time(infile, channel, t) -> Union[np.ndarray, None]:
     """Return a slice along the shot-axis for the given time and channel.
     """
     ts = core.time_axis()
     slice_index = index_nearest_to_value(ts, t)
     if slice_index is None:
         return None
-    with h5py.File(fname, "r") as infile:
-        dataset = infile["data"]
-        _, _, num_shots, _, _ = dataset.shape
-        slice_values = np.empty(num_shots)
-        for shot in range(num_shots):
-            slice_values[shot] = dataset[slice_index, channel.value, shot, 0, 0]
+    dataset = infile["data"]
+    _, _, num_shots, _, _ = dataset.shape
+    slice_values = np.empty(num_shots)
+    for shot in range(num_shots):
+        slice_values[shot] = dataset[slice_index, channel.value, shot, 0, 0]
     return slice_values
 
 
-def raw_slice_at_index(fname, channel, idx) -> Union[np.ndarray, None]:
+def raw_slice_at_index(infile, channel, idx) -> Union[np.ndarray, None]:
     """Return a slice along the shot-axis for the given channel and index along the time axis.
     """
-    with h5py.File(fname, "r") as infile:
-        dataset = infile["data"]
-        points, _, num_shots, _, _ = dataset.shape
-        if idx < 0:
-            return None
-        if idx > points:
-            return None
-        slice_values = np.empty(num_shots)
-        for shot in range(num_shots):
-            slice_values[shot] = dataset[idx, channel.value, shot, 0, 0]
+    dataset = infile["data"]
+    points, _, num_shots, _, _ = dataset.shape
+    if idx < 0:
+        return None
+    if idx > points:
+        return None
+    slice_values = np.empty(num_shots)
+    for shot in range(num_shots):
+        slice_values[shot] = dataset[idx, channel.value, shot, 0, 0]
     return slice_values
 
 
-def da_slice_at_time(fname, t) -> Union[np.ndarray, None]:
+def da_slice_at_time(infile, t) -> Union[np.ndarray, None]:
     """Return a slice along the shot-axis at the given time.
     """
     ts = core.time_axis()
     slice_index = index_nearest_to_value(ts, t)
     if slice_index is None:
         return None
-    with h5py.File(fname, "r") as infile:
-        dataset = infile["data"]
-        _, num_shots, _ = dataset.shape
-        slice_values = np.empty(num_shots)
-        for shot in range(num_shots):
-            slice_values[shot] = dataset[slice_index, shot, 0]
+    dataset = infile["data"]
+    _, num_shots, _ = dataset.shape
+    slice_values = np.empty(num_shots)
+    for shot in range(num_shots):
+        slice_values[shot] = dataset[slice_index, shot, 0]
     return slice_values
 
 
-def da_slice_at_index(fname, idx) -> Union[np.ndarray, None]:
+def da_slice_at_index(infile, idx) -> Union[np.ndarray, None]:
     """Return a slice along the shot-axis at the given index along the time axis.
     """
-    with h5py.File(fname, "r") as infile:
-        dataset = infile["data"]
-        points, num_shots, _ = dataset.shape
-        if idx < 0:
-            return None
-        if idx > points:
-            return None
-        slice_values = np.empty(num_shots)
-        for shot in range(num_shots):
-            slice_values[shot] = dataset[idx, shot, 0]
+    dataset = infile["data"]
+    points, num_shots, _ = dataset.shape
+    if idx < 0:
+        return None
+    if idx > points:
+        return None
+    slice_values = np.empty(num_shots)
+    for shot in range(num_shots):
+        slice_values[shot] = dataset[idx, shot, 0]
     return slice_values
