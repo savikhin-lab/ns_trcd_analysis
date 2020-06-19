@@ -165,7 +165,50 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wave
     return
 
 
+@click.command()
+@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
+@click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
+@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
+@click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
+def wlslice(input_file, figpath, txtpath, stime, sindex):
+    """Create a dA slice at all wavelengths for a specified time.
+
+    Note: This command is only valid for averaged dA data.
+    """
+    with h5py.File(input_file, "r") as infile:
+        try:
+            infile["average"]
+        except KeyError:
+            click.echo("This command is only valid for averaged data.")
+            return
+        if (txtpath is None) and (figpath is None):
+            click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
+            return
+        points = infile["data"].shape[0]
+        if not slices.valid_shot_slice_point(stime, sindex, points):
+            return
+        if sindex is None:
+            s_idx = slices.index_nearest_to_value(core.time_axis(), stime)
+            if s_idx is None:
+                click.echo("Slice time is out of range.")
+                return
+        else:
+            s_idx = sindex
+        s = infile["average"][s_idx, :]
+        wavelengths = infile["wavelengths"]
+        if txtpath:
+            txtdata = np.empty((len(wavelengths), 2))
+            txtdata[:, 0] = wavelengths
+            txtdata[:, 1] = s
+            core.save_txt(txtdata, txtpath)
+        if figpath:
+            core.save_fig(wavelengths, s, figpath)
+        return
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(inspect)
 cli.add_command(shotslice)
+cli.add_command(wlslice)
