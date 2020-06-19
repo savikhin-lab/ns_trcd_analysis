@@ -68,11 +68,8 @@ def da(input_file, output_file, incremental, average, subtract_background, fig, 
                 delta_a.average(outfile, incremental)
                 if txt:
                     delta_a.save_avg_as_txt(outfile, Path(txt))
-                    outdata[:, 0] = ts
-                    outdata[:, 1] = avg
-                    core.save_txt(outdata, txt)
                 if fig:
-                    core.save_fig(ts, avg, fig)
+                    delta_a.save_avg_as_png(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)

@@ -105,4 +105,21 @@ def save_avg_as_txt(f, outdir):
             outpath = outdir / f"{wavelengths[wl_idx]}.txt"
             core.save_txt(outdata, outpath)
     return
+
+
+def save_avg_as_png(f, outdir):
+    """Save the average dA for each wavelength as a PNG file.
+    """
+    ts = core.time_axis()
+    da = f["average"]
+    _, wls = da.shape
+    outdata = np.empty((20_000, 2))
+    outdata[:, 0] = ts
+    wavelengths = f["wavelengths"]
+    if not outdir.exists():
+        outdir.mkdir()
+    with click.progressbar(range(wls), label="Saving figures") as indices:
+        for wl_idx in indices:
+            outpath = outdir / f"{wavelengths[wl_idx]}.txt"
+            core.save_fig(ts, da[:, wl_idx], outpath)
     return
