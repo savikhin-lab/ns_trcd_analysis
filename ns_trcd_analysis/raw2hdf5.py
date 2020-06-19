@@ -66,4 +66,4 @@ def collect_wavelengths(path) -> List[int]:
         if not d.is_dir():
             continue
         wls.append(int(d.name))
-    return wls
+    return sorted(wls)
