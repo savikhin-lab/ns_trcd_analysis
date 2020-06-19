@@ -8,6 +8,7 @@ import click
 import numpy as np
 from itertools import product
 from scipy.optimize import curve_fit
+from . import core
 
 
 POINTS_BEFORE_PUMP = 1_500
@@ -85,3 +86,23 @@ def line(x, m, b) -> np.ndarray:
     """Compute a line for use with background subtraction.
     """
     return m * x + b
+
+
+def save_avg_as_txt(f, outdir):
+    """Save the average dA for each wavelength as a CSV file.
+    """
+    ts = core.time_axis()
+    da = f["average"]
+    _, wls = da.shape
+    outdata = np.empty((20_000, 2))
+    outdata[:, 0] = ts
+    wavelengths = f["wavelengths"]
+    if not outdir.exists():
+        outdir.mkdir()
+    with click.progressbar(range(wls), label="Saving CSVs") as indices:
+        for wl_idx in indices:
+            outdata[:, 1] = da[:, wl_idx]
+            outpath = outdir / f"{wavelengths[wl_idx]}.txt"
+            core.save_txt(outdata, outpath)
+    return
+    return

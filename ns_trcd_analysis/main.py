@@ -60,14 +60,14 @@ def da(input_file, output_file, incremental, average, subtract_background, fig, 
         with h5py.File(input_file, "r") as infile:
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
             outfile.create_dataset("data", (points, shots, wavelengths))
+            outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
             delta_a.compute_da(infile["data"], outfile["data"], incremental)
             if subtract_background:
                 delta_a.subtract_background(outfile, incremental)
             if average:
                 delta_a.average(outfile, incremental)
-                ts = core.time_axis()
                 if txt:
-                    outdata = np.empty((POINTS, 2))
+                    delta_a.save_avg_as_txt(outfile, Path(txt))
                     outdata[:, 0] = ts
                     outdata[:, 1] = avg
                     core.save_txt(outdata, txt)
@@ -75,10 +75,10 @@ def da(input_file, output_file, incremental, average, subtract_background, fig, 
                     core.save_fig(ts, avg, fig)
             else:
                 if txt:
-                    click.echo("Saving a CSV requires averaging ('--average').", err=True)
+                    click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
                     return
                 if fig:
-                    click.echo("Saving an image requires averaging ('--average').", err=True)
+                    click.echo("Saving an image requires averaging. See the '-a' option.", err=True)
                     return
     return
 
