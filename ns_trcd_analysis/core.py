@@ -39,6 +39,8 @@ def count_subdirs(path) -> int:
     count = 0
     for item in path.iterdir():
         if item.is_dir():
+            if item.name[0] == "_":
+                continue
             count += 1
     return count
 
