@@ -86,26 +86,34 @@ def da(input_file, output_file, average, subtract_background, fig, txt):
 @click.argument("output_dir", type=click.Path(file_okay=False, dir_okay=True))
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
-def inspect(input_file, output_dir, format, channel):
+@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
+def inspect(input_file, output_dir, format, channel, wavelength):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
+    if wavelength is None:
+        click.echo("A wavelength is required. See the '-w' option.")
+        return
     with h5py.File(input_file, "r") as infile:
+        wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+        if wl_idx is None:
+            click.echo("Wavelength not found.")
+            return
         dataset = infile["data"]
         root_dir = Path(output_dir)
         if format == "da":
-            images.dump_da_images(root_dir, dataset)
+            images.dump_da_images(root_dir, dataset, wl_idx)
         elif format == "raw":
             if not channel:
                 click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
                 return
             if channel == "par":
-                images.dump_raw_images(root_dir, Channels.PAR, dataset)
+                images.dump_raw_images(root_dir, Channels.PAR, dataset, wl_idx)
             elif channel == "perp":
-                images.dump_raw_images(root_dir, Channels.PERP, dataset)
+                images.dump_raw_images(root_dir, Channels.PERP, dataset, wl_idx)
             elif channel == "ref":
-                images.dump_raw_images(root_dir, Channels.REF, dataset)
+                images.dump_raw_images(root_dir, Channels.REF, dataset, wl_idx)
             else:
                 click.echo("Invalid channel or incorrect data format", err=True)
                 return

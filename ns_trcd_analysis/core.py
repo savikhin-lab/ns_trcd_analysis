@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from enum import Enum
+from typing import Union
 
 
 class Channels(Enum):
@@ -71,3 +72,13 @@ def time_axis(tpp=20e-9, length=20_000) -> np.ndarray:
     ts = tpp * np.arange(length)
     ts -= 0.1 * ts[-1]
     return ts
+
+
+def index_for_wavelength(wls, w) -> Union[None, int]:
+    """Return the index for a particular wavelength or None if not present
+    """
+    try:
+        idx = wls.index(w)
+    except ValueError:
+        return None
+    return idx
