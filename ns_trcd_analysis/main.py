@@ -3,7 +3,7 @@ import h5py
 import numpy as np
 from pathlib import Path
 from . import core
-from . import delta_a
+from . import compute
 from . import images
 from . import raw2hdf5
 from . import slices
@@ -21,8 +21,7 @@ def cli():
 @click.command()
 @click.argument("input_dir", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.argument("outfile_name", type=click.Path(file_okay=True, dir_okay=False))
-@click.option("-i", "--incremental", is_flag=True, help="Write shots to the file channel by channel, rather than shot by shot.")
-def assemble(input_dir, outfile_name, incremental):
+def assemble(input_dir, outfile_name):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -40,18 +39,17 @@ def assemble(input_dir, outfile_name, incremental):
     """
     in_dir = Path(input_dir)
     outfile = in_dir / outfile_name
-    raw2hdf5.ingest(in_dir, outfile, incremental)
+    raw2hdf5.ingest(in_dir, outfile)
 
 
 @click.command()
 @click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
 @click.argument("output_file", type=click.Path(file_okay=True, dir_okay=False))
-@click.option("-i", "--incremental", is_flag=True, help="Read/write one shot at a time. This is slower, but uses significantly less memory.")
 @click.option("-a", "--average", is_flag=True, help="Average dA and save the result.")
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
-def da(input_file, output_file, incremental, average, subtract_background, fig, txt):
+def da(input_file, output_file, average, subtract_background, fig, txt):
     """Compute dA from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -61,15 +59,23 @@ def da(input_file, output_file, incremental, average, subtract_background, fig, 
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
-            delta_a.compute_da(infile["data"], outfile["data"], incremental)
+            compute.compute_da(infile["data"], outfile["data"])
             if subtract_background:
-                delta_a.subtract_background(outfile, incremental)
+                compute.subtract_background(outfile)
             if average:
-                delta_a.average(outfile, incremental)
+                compute.average(outfile)
                 if txt:
-                    delta_a.save_avg_as_txt(outfile, Path(txt))
+                    compute.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    delta_a.save_avg_as_png(outfile, Path(fig))
+                    compute.save_avg_as_png(outfile, Path(fig))
+            else:
+                if txt:
+                    click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
+                    return
+                if fig:
+                    click.echo("Saving an image requires averaging. See the '-a' option.", err=True)
+                    return
+    return
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
