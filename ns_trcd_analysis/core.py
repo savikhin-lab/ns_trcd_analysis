@@ -81,7 +81,7 @@ def time_axis(tpp=20e-9, length=20_000) -> np.ndarray:
     """Return the time axis used in experiments.
     """
     ts = tpp * np.arange(length)
-    ts -= 0.1 * ts[-1]
+    ts -= 1920 * 20e-9
     return ts
 
 
