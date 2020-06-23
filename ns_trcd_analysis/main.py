@@ -76,6 +76,35 @@ def da(input_file, output_file, average, subtract_background, fig, txt):
                     click.echo("Saving an image requires averaging. See the '-a' option.", err=True)
                     return
     return
+
+
+@click.command()
+@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.argument("output_file", type=click.Path(file_okay=True, dir_okay=False))
+@click.option("-d", "--delta", type=click.FLOAT, required=True, help="The value of delta to use when computing dCD.")
+@click.option("-a", "--average", is_flag=True, help="Average dA and save the result.")
+@click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
+@click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
+@click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
+def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
+    """Compute dCD from a raw data file.
+
+    The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
+    """
+    with h5py.File(output_file, "w") as outfile:
+        with h5py.File(input_file, "r") as infile:
+            (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            outfile.create_dataset("data", (points, shots, wavelengths))
+            outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
+            compute.compute_cd_approx(infile, outfile, delta)
+            if subtract_background:
+                compute.subtract_background(outfile)
+            if average:
+                compute.average(outfile)
+                if txt:
+                    compute.save_avg_as_txt(outfile, Path(txt))
+                if fig:
+                    compute.save_cd_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -260,6 +289,7 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 
 cli.add_command(assemble)
 cli.add_command(da)
+cli.add_command(cd)
 cli.add_command(inspect)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
