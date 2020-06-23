@@ -51,18 +51,27 @@ def save_txt(arr, path) -> None:
     np.savetxt(path, arr, delimiter=",")
 
 
-def save_fig(x, y, path, xlabel=None, ylabel=None) -> None:
+def save_fig(x, y, path, xlabel=None, ylabel=None, title=None, remove_dev=False) -> None:
     """Save a PNG image of dA or dCD data.
 
     Neither the x nor y data will be modified for plotting, so you will need to convert
     to microseconds or mOD before passing data to this function.
     """
+    if remove_dev:
+        mean = np.mean(y)
+        std_dev = np.std(y)
+        devs = np.abs((y - mean)/std_dev)
+        for i in range(len(y)):
+            if devs[i] > 2:
+                y[i] = (y[i-2] + y[i+2])/2
     fig, ax = plt.subplots(figsize=(5, 3))
     ax.plot(x, y)
     if xlabel:
         ax.set_xlabel(xlabel)
     if ylabel:
         ax.set_ylabel(ylabel)
+    if title:
+        ax.set_title(title)
     fig.tight_layout()
     fig.savefig(path, format="png", dpi=200)
     plt.close()

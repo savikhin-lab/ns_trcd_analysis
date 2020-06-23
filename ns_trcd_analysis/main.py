@@ -67,7 +67,7 @@ def da(input_file, output_file, average, subtract_background, fig, txt):
                 if txt:
                     compute.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_avg_as_png(outfile, Path(fig))
+                    compute.save_da_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -164,7 +164,8 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wave
             txtdata[:, 1] = s
             core.save_txt(txtdata, txtpath)
         if figpath:
-            core.save_fig(shots, s, figpath)
+            t = core.time_axis()[s_idx] * 1_000_000
+            core.save_fig(shots, s, figpath, xlabel="Shot Number", title=f"{wavelengt}nm, t={t:.2f}us")
     return
 
 
@@ -206,7 +207,8 @@ def wlslice(input_file, figpath, txtpath, stime, sindex):
             txtdata[:, 1] = s
             core.save_txt(txtdata, txtpath)
         if figpath:
-            core.save_fig(wavelengths, s, figpath)
+            t = core.time_axis()[s_idx] * 1_000_000
+            core.save_fig(wavelengths, s * 1_000, figpath, xlabel="Wavelength", ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
         return
 
 
@@ -251,7 +253,8 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
             txtdata[:, 1] = s
             core.save_txt(txtdata, txtpath)
         if figpath:
-            core.save_fig(shots, s, figpath)
+            t = core.time_axis()[s_idx] * 1_000_000
+            core.save_fig(shots, s, figpath, xlabel="Shot number", ylabel="Abs.", title=f"Slice at {wavelength}nm, t={t:.2f}us")
         return
 
 
