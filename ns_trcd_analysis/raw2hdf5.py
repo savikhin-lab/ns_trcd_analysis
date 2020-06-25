@@ -30,7 +30,7 @@ def ingest(input_dir, output_file_path) -> None:
     is now 1 (there's always a pump state), but it is retained for backwards compatibility.
     """
     num_shots = count_subdirs(input_dir)
-    wls = collect_wavelengths(input_dir / "1")
+    wls = collect_wavelengths(input_dir / "0001")
     with h5py.File(output_file_path, "w") as outfile:
         tmp_arr = np.empty((20_000, 3, num_shots, len(wls), 1))
         outfile.create_dataset("data", (20_000, 3, num_shots, len(wls), 1))
@@ -39,7 +39,7 @@ def ingest(input_dir, output_file_path) -> None:
         dir_indices = [x for x in product(range(1, num_shots+1), range(len(wls)))]
         with click.progressbar(dir_indices, label="Reading data") as indices:
             for shot_index, wl_index in indices:
-                datadir = input_dir / f"{shot_index}" / f"{wls[wl_index]}"
+                datadir = input_dir / f"{shot_index:04d}" / f"{wls[wl_index]}"
                 # np.s_[...] generates the indices that you would normally get by slicing a NumPy array
                 tmp_arr[:, 0, shot_index - 1, wl_index, 0] = np.load(datadir / "par.npy")
                 tmp_arr[:, 1, shot_index - 1, wl_index, 0] = np.load(datadir / "perp.npy")
