@@ -49,7 +49,8 @@ def assemble(input_dir, outfile_name):
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
-def da(input_file, output_file, average, subtract_background, fig, txt):
+@click.option("-p", "--perp", is_flag=True, help="Compute dA with the perpendicular channel rather than parallel.")
+def da(input_file, output_file, average, subtract_background, fig, txt, perp):
     """Compute dA from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -59,7 +60,10 @@ def da(input_file, output_file, average, subtract_background, fig, txt):
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
-            compute.compute_da(infile["data"], outfile["data"])
+            if perp:
+                compute.compute_perp_da(infile, outfile)
+            else:
+                compute.compute_da(infile, outfile)
             if subtract_background:
                 compute.subtract_background(outfile)
             if average:

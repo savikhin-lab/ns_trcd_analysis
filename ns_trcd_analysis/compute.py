@@ -14,13 +14,14 @@ from . import core
 POINTS_BEFORE_PUMP = 1_500
 
 
-def compute_da(input_ds, output_ds):
+def compute_da(infile, outfile):
     """Compute dA from the raw parallel and reference channels.
     """
-    _, _, shots, wavelengths, _ = input_ds.shape
+    raw_ds = infile["data"]
+    _, _, shots, wavelengths, _ = raw_ds.shape
     tmp_raw = np.empty((20_000, 3, shots, wavelengths, 1))
     tmp_da = np.empty((20_000, shots, wavelengths))
-    input_ds.read_direct(tmp_raw)
+    raw_ds.read_direct(tmp_raw)
     with click.progressbar(range(shots), label="Computing dA") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
@@ -30,7 +31,28 @@ def compute_da(input_ds, output_ds):
                 before_zero_ref = ref[:POINTS_BEFORE_PUMP]
                 without_pump = np.mean(before_zero_par / before_zero_ref)
                 tmp_da[:, shot_idx, wl_idx] = -np.log10(par / ref / without_pump)
-    output_ds.write_direct(tmp_da)
+    outfile["data"].write_direct(tmp_da)
+    return
+
+
+def compute_perp_da(infile, outfile):
+    """Compute dA from the raw perpendicular and reference channels.
+    """
+    raw_ds = infile["data"]
+    _, _, shots, wavelengths, _ = raw_ds.shape
+    tmp_raw = np.empty((20_000, 3, shots, wavelengths, 1))
+    tmp_da = np.empty((20_000, shots, wavelengths))
+    raw_ds.read_direct(tmp_raw)
+    with click.progressbar(range(shots), label="Computing dA") as shots:
+        for shot_idx in shots:
+            for wl_idx in range(wavelengths):
+                perp = tmp_raw[:, 1, shot_idx, wl_idx, 0]
+                ref = tmp_raw[:, 2, shot_idx, wl_idx, 0]
+                before_zero_perp = perp[:POINTS_BEFORE_PUMP]
+                before_zero_ref = ref[:POINTS_BEFORE_PUMP]
+                without_pump = np.mean(before_zero_perp / before_zero_ref)
+                tmp_da[:, shot_idx, wl_idx] = -np.log10(perp / ref / without_pump)
+    outfile["data"].write_direct(tmp_da)
     return
 
 
