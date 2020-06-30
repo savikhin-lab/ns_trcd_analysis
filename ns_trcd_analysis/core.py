@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 import matplotlib.pyplot as plt
 from enum import Enum
@@ -93,3 +94,12 @@ def index_for_wavelength(wls, w) -> Union[None, int]:
     except ValueError:
         return None
     return idx
+
+
+def iter_chunks(iterable, size):
+    it = iter(iterable)
+    while True:
+        chunk = tuple(itertools.islice(it, size))
+        if len(chunk) == 0:
+            break
+        yield chunk

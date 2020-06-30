@@ -291,6 +291,27 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
         return
 
 
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The input file containing either dA or dCD data.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The output file in which to store the lifetimes and amplitudes.")
+@click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
+@click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
+@click.option("-l", "--lifetime", "lifetimes", type=click.FLOAT, multiple=True, required=True, help="The initial guesses for each lifetime. Multiple instances of this option are allowed.")
+def lfit(input_file, output_file, figpath, txtpath, lifetimes):
+    """Produce local fits of a dataset.
+    """
+    with h5py.File(input_file, "r") as infile:
+        try:
+            infile["average"]
+        except KeyError:
+            click.echo("This command only works with averaged data.")
+            return
+        fit_results = compute.local_fits(infile, lifetimes)
+    with Path(output_file).open("w") as outfile:
+        compute.save_lfit_params_as_txt(fit_results, outfile)
+    return
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -298,3 +319,4 @@ cli.add_command(inspect)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
 cli.add_command(absslice)
+cli.add_command(lfit)

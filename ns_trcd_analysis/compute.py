@@ -7,11 +7,13 @@
 import click
 import numpy as np
 from itertools import product
+from typing import Dict, List, Tuple
 from scipy.optimize import curve_fit
 from . import core
 
 
 POINTS_BEFORE_PUMP = 1_500
+FIT_START_POINT = 1921
 
 
 def compute_da(infile, outfile):
@@ -190,4 +192,53 @@ def save_cd_figures(f, outdir):
         for wl_idx in indices:
             outpath = outdir / f"{wavelengths[wl_idx]}.png"
             core.save_fig(ts*1_000_000, cd[:, wl_idx]*1_000, outpath, xlabel="Time (us)", ylabel="dCD", title=f"{wavelengths[wl_idx]}nm", remove_dev=True)
+    return
+
+
+def local_fits(infile, lifetimes) -> Dict[int, List[Tuple[float, float]]]:
+    """Compute local fits for a set of dA or dCD curves.
+    """
+    raw_data = np.empty_like(infile["average"])
+    infile["average"].read_direct(raw_data)
+    params = []
+    for x in lifetimes:
+        params.append(-1e-3)
+        params.append(x)
+    wavelengths = infile["wavelengths"]
+    ts = core.time_axis()[FIT_START_POINT:]
+    lfit_results = dict()
+    with click.progressbar(range(len(wavelengths)), label="Computing fits") as indices:
+        for wl_idx in indices:
+            y_data = raw_data[FIT_START_POINT:, wl_idx]
+            optimized_params, cov = curve_fit(multi_exp, ts, raw_data[FIT_START_POINT:, wl_idx], p0=params, maxfev=10_000)
+            pairs = [x for x in core.iter_chunks(optimized_params, 2)]
+            lfit_results[wavelengths[wl_idx]] = pairs
+    return lfit_results
+
+
+def multi_exp(x, *args) -> np.ndarray:
+    """Compute a multi-exponential decay function.
+
+    The first argument is the time axis. The arguments that follow must be in the
+    order 'a1', 't1', 'a2', 't2', ... , 'an', 'tn'.
+    """
+    out = np.zeros_like(x)
+    for a, tau in core.iter_chunks(args, 2):
+        this_exp = a * np.exp(-x/tau)
+        np.add(out, this_exp, out=out)
+    return out
+
+
+def save_lfit_params_as_txt(results, outfile):
+    """Save the local fit amplitudes and lifetimes to a text file.
+    """
+    for wl in results.keys():
+        outfile.write(f"[{wl:3d}]\n")
+        count = 1
+        for a, t in results[wl]:
+            t_us = t * 1_000_000
+            outfile.write(f"A{count}: {a:.2e}\n")
+            outfile.write(f"T{count}: {t_us:.2f}us\n")
+            count += 1
+        outfile.write("\n")
     return
