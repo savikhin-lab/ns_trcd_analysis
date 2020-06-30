@@ -16,6 +16,9 @@ scipy = "^1.4.1"
 pytest = "^5.2"
 pylint = "^2.5.3"
 
+[tool.poetry.scripts]
+analysis = "ns_trcd_analysis.main:cli"
+
 [build-system]
 requires = ["poetry>=0.12"]
 build-backend = "poetry.masonry.api"
