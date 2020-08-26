@@ -17,6 +17,9 @@ CHANNEL_MAP = {
     "ref": Channels.REF,
 }
 
+POINTS = 20_000
+VALENTYN_POINTS = 50_000
+
 
 def valid_channel(channel_str) -> bool:
     """Determine whether a string represents a valid channel.
@@ -82,7 +85,8 @@ def time_axis(tpp=20e-9, length=20_000) -> np.ndarray:
     """Return the time axis used in experiments.
     """
     ts = tpp * np.arange(length)
-    ts -= 1920 * 20e-9
+    ten_percent_point = np.floor(length/10) * tpp
+    ts -= ten_percent_point
     return ts
 
 

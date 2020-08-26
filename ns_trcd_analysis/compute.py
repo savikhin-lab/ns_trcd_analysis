@@ -16,13 +16,13 @@ POINTS_BEFORE_PUMP = 1_500
 FIT_START_POINT = 1921
 
 
-def compute_da(infile, outfile):
-    """Compute dA from the raw parallel and reference channels.
+def compute_da_always_pumped(infile, outfile):
+    """Compute dA from the raw parallel and reference channels when every shot has pump.
     """
     raw_ds = infile["data"]
-    _, _, shots, wavelengths, _ = raw_ds.shape
-    tmp_raw = np.empty((20_000, 3, shots, wavelengths, 1))
-    tmp_da = np.empty((20_000, shots, wavelengths))
+    points, _, shots, wavelengths, _ = raw_ds.shape
+    tmp_raw = np.empty((points, 3, shots, wavelengths, 1))
+    tmp_da = np.empty((points, shots, wavelengths))
     raw_ds.read_direct(tmp_raw)
     with click.progressbar(range(shots), label="Computing dA") as shots:
         for shot_idx in shots:
@@ -37,13 +37,33 @@ def compute_da(infile, outfile):
     return
 
 
+def compute_da_with_and_without_pump(infile, outfile):
+    """Compute dA from the raw parallel and reference channels with and without pump.
+    """
+    raw_ds = infile["data"]
+    points, _, shots, wavelengths, _ = raw_ds.shape
+    tmp_raw = np.empty((points, 3, shots, wavelengths, 2))
+    tmp_da = np.empty((points, shots, wavelengths))
+    raw_ds.read_direct(tmp_raw)
+    with click.progressbar(range(shots), label="Computing dA") as shots:
+        for shot_idx in shots:
+            for wl_idx in range(wavelengths):
+                par_np = tmp_raw[:, 0, shot_idx, wl_idx, 0]
+                ref_np = tmp_raw[:, 2, shot_idx, wl_idx, 0]
+                par_wp = tmp_raw[:, 0, shot_idx, wl_idx, 1]
+                ref_wp = tmp_raw[:, 2, shot_idx, wl_idx, 1]
+                tmp_da[:, shot_idx, wl_idx] = -np.log10((par_wp / ref_wp) / (par_np / ref_np))
+    outfile["data"].write_direct(tmp_da)
+    return
+
+
 def compute_perp_da(infile, outfile):
     """Compute dA from the raw perpendicular and reference channels.
     """
     raw_ds = infile["data"]
-    _, _, shots, wavelengths, _ = raw_ds.shape
-    tmp_raw = np.empty((20_000, 3, shots, wavelengths, 1))
-    tmp_da = np.empty((20_000, shots, wavelengths))
+    points, _, shots, wavelengths, _ = raw_ds.shape
+    tmp_raw = np.empty((points, 3, shots, wavelengths, 1))
+    tmp_da = np.empty((points, shots, wavelengths))
     raw_ds.read_direct(tmp_raw)
     with click.progressbar(range(shots), label="Computing dA") as shots:
         for shot_idx in shots:
@@ -58,13 +78,13 @@ def compute_perp_da(infile, outfile):
     return
 
 
-def compute_cd_approx(infile, outfile, delta):
-    """Compute dCD from the rawl parallel and perpendicular channels.
+def compute_cd_always_pumped(infile, outfile, delta):
+    """Compute dCD from the raw parallel and perpendicular channels when every shot is pumped.
     """
     ds_in = infile["data"]
-    _, _, shots, wavelengths, _ = ds_in.shape
-    tmp_raw = np.empty((20_000, 3, shots, wavelengths, 1))
-    tmp_cd = np.empty((20_000, shots, wavelengths))
+    points, _, shots, wavelengths, _ = ds_in.shape
+    tmp_raw = np.empty((points, 3, shots, wavelengths, 1))
+    tmp_cd = np.empty((points, shots, wavelengths))
     ds_in.read_direct(tmp_raw)
     coeff = 4 / (2.3 * delta)
     with click.progressbar(range(shots), label="Computing CD") as shots:
@@ -80,10 +100,25 @@ def compute_cd_approx(infile, outfile, delta):
     return
 
 
-def compute_cd_exact(infile, outfile, delta):
-    """Compute the exact dCD via solving a system of equations.
+def compute_cd_with_and_without_pump(infile, outfile, delta):
+    """Compute dCD from the raw parallel and perpendicular channels with and without pump.
     """
-    pass
+    ds_in = infile["data"]
+    points, _, shots, wavelengths, _ = ds_in.shape
+    tmp_raw = np.empty((points, 3, shots, wavelengths, 2))
+    tmp_cd = np.empty((points, shots, wavelengths))
+    ds_in.read_direct(tmp_raw)
+    coeff = 4 / (2.3 * delta)
+    with click.progressbar(range(shots), label="Computing CD") as shots:
+        for shot_idx in shots:
+            for wl_idx in range(wavelengths):
+                par_np = tmp_raw[:, 0, shot_idx, wl_idx, 0]
+                perp_np = tmp_raw[:, 1, shot_idx, wl_idx, 0]
+                par_wp = tmp_raw[:, 0, shot_idx, wl_idx, 1]
+                perp_wp = tmp_raw[:, 1, shot_idx, wl_idx, 1]
+                tmp_cd[:, shot_idx, wl_idx] = coeff * (perp_wp / par_wp - perp_np / par_np)
+    outfile["data"].write_direct(tmp_cd)
+    return
 
 
 def average(f) -> np.ndarray:
@@ -125,10 +160,10 @@ def line(x, m, b) -> np.ndarray:
 def save_avg_as_txt(f, outdir):
     """Save the average dA for each wavelength as a CSV file.
     """
-    ts = core.time_axis()
     da = f["average"]
-    _, wls = da.shape
-    outdata = np.empty((20_000, 2))
+    points, wls = da.shape
+    ts = core.time_axis(length=points)
+    outdata = np.empty((points, 2))
     outdata[:, 0] = ts
     wavelengths = f["wavelengths"]
     if not outdir.exists():
@@ -144,10 +179,10 @@ def save_avg_as_txt(f, outdir):
 def save_avg_as_png(f, outdir, xlabel=None, ylabel=None, title=None):
     """Save the average dA for each wavelength as a PNG file.
     """
-    ts = core.time_axis()
     da = f["average"]
-    _, wls = da.shape
-    outdata = np.empty((20_000, 2))
+    points, wls = da.shape
+    ts = core.time_axis(length=points)
+    outdata = np.empty((points, 2))
     outdata[:, 0] = ts
     wavelengths = f["wavelengths"]
     if not outdir.exists():
@@ -162,10 +197,10 @@ def save_avg_as_png(f, outdir, xlabel=None, ylabel=None, title=None):
 def save_da_figures(f, outdir):
     """Save the average dA for each wavelength as a PNG file.
     """
-    ts = core.time_axis()
     da = f["average"]
-    _, wls = da.shape
-    outdata = np.empty((20_000, 2))
+    points, wls = da.shape
+    ts = core.time_axis(length=points)
+    outdata = np.empty((points, 2))
     outdata[:, 0] = ts
     wavelengths = f["wavelengths"]
     if not outdir.exists():
@@ -180,10 +215,10 @@ def save_da_figures(f, outdir):
 def save_cd_figures(f, outdir):
     """Save the average dA for each wavelength as a PNG file.
     """
-    ts = core.time_axis()
     cd = f["average"]
-    _, wls = cd.shape
-    outdata = np.empty((20_000, 2))
+    points, wls = cd.shape
+    ts = core.time_axis(length=points)
+    outdata = np.empty((points, 2))
     outdata[:, 0] = ts
     wavelengths = f["wavelengths"]
     if not outdir.exists():

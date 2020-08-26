@@ -50,7 +50,8 @@ def assemble(input_dir, output_file):
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
 @click.option("-p", "--perp", is_flag=True, help="Compute dA with the perpendicular channel rather than parallel.")
-def da(input_file, output_file, average, subtract_background, fig, txt, perp):
+@click.option("--without-pump", is_flag=True, help="Compute dA when there are with and without pump shots.")
+def da(input_file, output_file, average, subtract_background, fig, txt, perp, without_pump):
     """Compute dA from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -63,7 +64,10 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
             if perp:
                 compute.compute_perp_da(infile, outfile)
             else:
-                compute.compute_da(infile, outfile)
+                if without_pump:
+                    compute.compute_da_with_and_without_pump(infile, outfile)
+                else:
+                    compute.compute_da_always_pumped(infile, outfile)
             if subtract_background:
                 compute.subtract_background(outfile)
             if average:
@@ -90,7 +94,8 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
-def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
+@click.option("--without-pump", is_flag=True, help="Compute dA when there are with and without pump shots.")
+def cd(input_file, output_file, delta, average, subtract_background, fig, txt, without_pump):
     """Compute dCD from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -100,7 +105,10 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
-            compute.compute_cd_approx(infile, outfile, delta)
+            if without_pump:
+                compute.compute_cd_with_and_without_pump(infile, outfile, delta)
+            else:
+                compute.compute_cd_always_pumped(infile, outfile, delta)
             if subtract_background:
                 compute.subtract_background(outfile)
             if average:
