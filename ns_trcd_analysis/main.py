@@ -19,9 +19,9 @@ def cli():
 
 
 @click.command()
-@click.argument("input_dir", type=click.Path(exists=True, file_okay=False, dir_okay=True))
-@click.argument("outfile_name", type=click.Path(file_okay=True, dir_okay=False))
-def assemble(input_dir, outfile_name):
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the raw experiment data files.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the assembled experiment data.")
+def assemble(input_dir, output_file):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -38,13 +38,13 @@ def assemble(input_dir, outfile_name):
     For the moment <pump states> is 1 and thus doesn't need to be there, but is included for backwards compatibility.
     """
     in_dir = Path(input_dir)
-    outfile = in_dir / outfile_name
+    outfile = in_dir / output_file
     raw2hdf5.ingest(in_dir, outfile)
 
 
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.argument("output_file", type=click.Path(file_okay=True, dir_okay=False))
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the results.")
 @click.option("-a", "--average", is_flag=True, help="Average dA and save the result.")
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
@@ -83,8 +83,8 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
 
 
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.argument("output_file", type=click.Path(file_okay=True, dir_okay=False))
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the results.")
 @click.option("-d", "--delta", type=click.FLOAT, required=True, help="The value of delta to use when computing dCD.")
 @click.option("-a", "--average", is_flag=True, help="Average dA and save the result.")
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
@@ -120,8 +120,8 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 
 
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.argument("output_dir", type=click.Path(file_okay=False, dir_okay=True))
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the images.")
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
 @click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to inspect.")
@@ -130,36 +130,36 @@ def inspect(input_file, output_dir, format, channel, wavelength):
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
+    output_dir = Path(output_dir)
     with h5py.File(input_file, "r") as infile:
         wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
         if wl_idx is None:
             click.echo("Wavelength not found.")
             return
         dataset = infile["data"]
-        root_dir = Path(output_dir)
         if format == "da":
-            images.dump_da_images(root_dir, dataset, wl_idx)
+            images.dump_da_images(output_dir, dataset, wl_idx)
         elif format == "raw":
             if not channel:
                 click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
                 return
             chan = core.CHANNEL_MAP[channel]
-            images.dump_raw_images(root_dir, chan, dataset, wl_idx)
+            images.dump_raw_images(output_dir, chan, dataset, wl_idx)
         else:
             click.echo("Invalid data format", err=True)
             return
 
 
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
-@click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), required=True, help="The format of the data file.")
-@click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), required=True, help="If the format of the data is 'raw', which channel to slice.")
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
+@click.option("-d", "--data-format", type=click.Choice(["raw", "da"]), required=True, help="The format of the data file.")
+@click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to slice.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
 @click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
 @click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to create a slice of.")
-def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wavelength):
+def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex, wavelength):
     """Select the same point in time for every shot in the dataset at a fixed wavelength.
     """
     with h5py.File(input_file, "r") as infile:
@@ -180,12 +180,12 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wave
         if wl_idx is None:
             click.echo("Wavelength not found.")
             return
-        if format == "raw":
+        if data_format == "raw":
             if not core.valid_channel(channel):
                 return
             chan = core.CHANNEL_MAP[channel]
             s = infile["data"][s_idx, chan.value, :, wl_idx, 0]
-        elif format == "da":
+        elif data_format == "da":
             if channel is not None:
                 click.echo("Channel specifiers are only valid for the 'raw' data format.", err=True)
                 return
@@ -198,12 +198,12 @@ def shotslice(input_file, format, channel, figpath, txtpath, stime, sindex, wave
             core.save_txt(txtdata, txtpath)
         if figpath:
             t = core.time_axis()[s_idx] * 1_000_000
-            core.save_fig(shots, s, figpath, xlabel="Shot Number", title=f"{wavelengt}nm, t={t:.2f}us")
+            core.save_fig(shots, s, figpath, xlabel="Shot Number", title=f"{wavelength}nm, t={t:.2f}us")
     return
 
 
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA data file to read from.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
@@ -246,7 +246,7 @@ def wlslice(input_file, figpath, txtpath, stime, sindex):
 
 
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, file_okay=True, dir_okay=False))
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw data file to read from.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
@@ -292,7 +292,7 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The input file containing either dA or dCD data.")
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The input file containing either dA or dCD data.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The output file in which to store the lifetimes and amplitudes.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
