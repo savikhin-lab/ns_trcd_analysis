@@ -273,7 +273,39 @@ def rmosc(input_file, txt):
         infile.copy(infile["average"], "osc_free")
         for i in range(num_wls):
             infile["osc_free"][:, i] -= osc_data
-        return
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to read from.")
+@click.option("-p", "--points", default=1500, help="The number of points to use to calculate the offset (taken from the beginning of the curve.")
+@click.option("--each", is_flag=True, help="Remove the offset of each dA or dCD shot.")
+@click.option("--average", is_flag=True, help="Remove the offset of the averaged dA or dCD data.")
+@click.option("--osc-free", is_flag=True, help="Remove the offset of the oscillation-free dA or dCD data.")
+def rmoffset(input_file, points, each, average, osc_free):
+    """Shift curves up or down such that the values before the pump are centered on zero.
+    """
+    with h5py.File(input_file, "r+") as file:
+        if len(file["data"].shape) != 3:
+            click.echo("File does not contain valid dA or dCD data (wrong dimensions).")
+            return
+        if each:
+            compute.remove_da_shot_offsets(file["data"], points)
+        if average:
+            try:
+                file["average"]
+            except KeyError:
+                click.echo("File does not contain averaged data.")
+                return
+            compute.remove_avg_offsets(file["average"], points)
+        if osc_free:
+            try:
+                file["osc_free"]
+            except KeyError:
+                click.echo("File does not contain oscillation-free data.")
+                return
+            compute.remove_avg_offsets(file["osc_free"], points, ds_name="osc_free")
+    return
 
 
 @click.command()
@@ -449,3 +481,4 @@ cli.add_command(lfit)
 cli.add_command(split)
 cli.add_command(average)
 cli.add_command(rmosc)
+cli.add_command(rmoffset)

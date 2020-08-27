@@ -317,3 +317,39 @@ def save_raw_shots_as_txt(outdir, ds, wl_idx, chan, pump_idx):
             filepath = outdir / filename
             np.savetxt(filepath, save_data, delimiter=",")
     return
+
+
+def remove_da_shot_offsets(dataset, offset_points):
+    """Remove the before-pump offset from each shot.
+    """
+    points, shots, wls = dataset.shape
+    total_shots = shots * wls
+    all_indices = [x for x in product(range(shots), range(wls))]
+    original = np.empty((points, shots, wls))
+    tmp = np.empty_like(original)
+    dataset.read_direct(original)
+    with click.progressbar(all_indices, label="Subtracting offsets") as indices:
+        for shot_idx, wl_idx in indices:
+            shot = original[:, shot_idx, wl_idx]
+            before_pump_avg = shot[:offset_points].mean()
+            shot -= before_pump_avg
+            tmp[:, shot_idx, wl_idx] = shot
+    dataset.write_direct(tmp)
+    return
+
+
+def remove_avg_offsets(dataset, offset_points, ds_name="average"):
+    """Remove the before-pump offset from dA or dCD averages.
+    """
+    points, wls = dataset.shape
+    original = np.empty((points, wls))
+    tmp = np.empty_like(original)
+    dataset.read_direct(original)
+    with click.progressbar(range(wls), label="Subtracting offsets") as indices:
+        for wl_idx in indices:
+            shot = original[:, wl_idx]
+            before_pump_avg = shot[:offset_points].mean()
+            shot -= before_pump_avg
+            tmp[:, wl_idx] = shot
+    dataset.write_direct(tmp)
+    return
