@@ -48,10 +48,10 @@ def compute_da_with_and_without_pump(infile, outfile):
     with click.progressbar(range(shots), label="Computing dA") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
-                par_np = tmp_raw[:, 0, shot_idx, wl_idx, 0]
-                ref_np = tmp_raw[:, 2, shot_idx, wl_idx, 0]
-                par_wp = tmp_raw[:, 0, shot_idx, wl_idx, 1]
-                ref_wp = tmp_raw[:, 2, shot_idx, wl_idx, 1]
+                par_np = tmp_raw[:, 0, shot_idx, wl_idx, 1]
+                ref_np = tmp_raw[:, 2, shot_idx, wl_idx, 1]
+                par_wp = tmp_raw[:, 0, shot_idx, wl_idx, 0]
+                ref_wp = tmp_raw[:, 2, shot_idx, wl_idx, 0]
                 tmp_da[:, shot_idx, wl_idx] = -np.log10((par_wp / ref_wp) / (par_np / ref_np))
     outfile["data"].write_direct(tmp_da)
     return
@@ -112,16 +112,16 @@ def compute_cd_with_and_without_pump(infile, outfile, delta):
     with click.progressbar(range(shots), label="Computing CD") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
-                par_np = tmp_raw[:, 0, shot_idx, wl_idx, 0]
-                perp_np = tmp_raw[:, 1, shot_idx, wl_idx, 0]
-                par_wp = tmp_raw[:, 0, shot_idx, wl_idx, 1]
-                perp_wp = tmp_raw[:, 1, shot_idx, wl_idx, 1]
+                par_np = tmp_raw[:, 0, shot_idx, wl_idx, 1]
+                perp_np = tmp_raw[:, 1, shot_idx, wl_idx, 1]
+                par_wp = tmp_raw[:, 0, shot_idx, wl_idx, 0]
+                perp_wp = tmp_raw[:, 1, shot_idx, wl_idx, 0]
                 tmp_cd[:, shot_idx, wl_idx] = coeff * (perp_wp / par_wp - perp_np / par_np)
     outfile["data"].write_direct(tmp_cd)
     return
 
 
-def average(f) -> np.ndarray:
+def average(f):
     """Average all measurements for each wavelength.
     """
     da_ds = f["data"]
@@ -276,4 +276,44 @@ def save_lfit_params_as_txt(results, outfile):
             outfile.write(f"T{count}: {t_us:.2f}us\n")
             count += 1
         outfile.write("\n")
+    return
+
+
+def save_da_shots_as_txt(outdir, ds, wl_idx):
+    """Save each shot at a given wavelength as a CSV.
+    """
+    if not outdir.exists():
+        outdir.mkdir()
+    points, shots, wavelengths = ds.shape
+    ts = core.time_axis(length=points)
+    tmp = np.empty((points, shots, wavelengths))
+    ds.read_direct(tmp)
+    with click.progressbar(range(shots), label="Saving CSVs") as indices:
+        for shot_idx in indices:
+            save_data = np.empty((points, 2))
+            save_data[:, 0] = ts
+            save_data[:, 1] = tmp[:, shot_idx, wl_idx]
+            filename = f"{shot_idx+1:03d}.txt"
+            filepath = outdir / filename
+            np.savetxt(filepath, save_data, delimiter=",")
+    return
+
+
+def save_raw_shots_as_txt(outdir, ds, wl_idx, chan, pump_idx):
+    """Save each shot at a given wavelengths as a CSV.
+    """
+    if not outdir.exists():
+        outdir.mkdir()
+    points, _, shots, wavelengths, _ = ds.shape
+    ts = core.time_axis(length=points)
+    tmp = np.empty((points, 3, shots, wavelengths, 2))
+    ds.read_direct(tmp)
+    with click.progressbar(range(shots), label="Saving CSVs") as indices:
+        for shot_idx in indices:
+            save_data = np.empty((points, 2))
+            save_data[:, 0] = ts
+            save_data[:, 1] = tmp[:, chan.value, shot_idx, wl_idx, pump_idx]
+            filename = f"{shot_idx+1:03d}.txt"
+            filepath = outdir / filename
+            np.savetxt(filepath, save_data, delimiter=",")
     return

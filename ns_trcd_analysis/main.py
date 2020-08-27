@@ -129,16 +129,20 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
-@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the images.")
+@click.option("-f", "--figure-path", "fig", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store images of each shot.")
+@click.option("-t", "--txt-path", "txt", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store CSVs of each shot.")
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
 @click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to inspect.")
-def inspect(input_file, output_dir, format, channel, wavelength):
+@click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
+def extract(input_file, fig, txt, format, channel, wavelength, without_pump):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
-    output_dir = Path(output_dir)
+    if (not fig) and (not txt):
+        click.echo("Please select an output format with the -f/-t options.")
+        return
     with h5py.File(input_file, "r") as infile:
         wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
         if wl_idx is None:
@@ -146,7 +150,10 @@ def inspect(input_file, output_dir, format, channel, wavelength):
             return
         dataset = infile["data"]
         if format == "da":
-            images.dump_da_images(output_dir, dataset, wl_idx)
+            if fig:
+                images.dump_da_images(Path(fig), dataset, wl_idx)
+            if txt:
+                compute.save_da_shots_as_txt(Path(txt), dataset, wl_idx)
         elif format == "raw":
             pump_states = dataset.shape[4]
             if without_pump:
@@ -168,6 +175,51 @@ def inspect(input_file, output_dir, format, channel, wavelength):
         else:
             click.echo("Invalid data format", err=True)
             return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to split.")
+@click.option("-s", "--size", required=True, type=click.INT, help="The number of shots in each split.")
+def split(input_file, size):
+    """Split a data file into chunks of a given size.
+
+    This only works for dA and dCD files. If the total number of shots isn't a multiple of `size`, the last split
+    will contain fewer shots.
+    """
+    input_file_path = Path(input_file)
+    parent_path = input_file_path.parent
+    input_file_stem = input_file_path.stem
+    with h5py.File(input_file, "r") as infile:
+        points, shots, wavelengths = infile["data"].shape
+        original = np.empty((points, shots, wavelengths))
+        infile["data"].read_direct(original)
+        splits = core.compute_splits(shots, size)
+        for i, (start, stop) in enumerate(splits):
+            split_file = parent_path / (input_file_stem + f"_split{i}.h5")
+            if split_file.exists():
+                click.echo("A split file with a conflicting name already exists.")
+                return
+            with h5py.File(split_file, "w") as outfile:
+                tmp_ds = original[:, start:stop, :]
+                outfile.copy(infile["wavelengths"], "wavelengths")
+                outfile.create_dataset("data", data=tmp_ds)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
+@click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
+@click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
+def average(input_file, fig, txt):
+    """Average the data contained in a dA or dCD file.
+    """
+    with h5py.File(input_file, "r+") as file:
+        compute.average(file)
+        if txt:
+            compute.save_avg_as_txt(file, Path(txt))
+        if fig:
+            compute.save_da_figures(file, Path(fig))
+    return
 
 
 @click.command()
@@ -335,8 +387,10 @@ def lfit(input_file, output_file, figpath, txtpath, lifetimes):
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
-cli.add_command(inspect)
+cli.add_command(extract)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
 cli.add_command(absslice)
 cli.add_command(lfit)
+cli.add_command(split)
+cli.add_command(average)

@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 import matplotlib.pyplot as plt
 from enum import Enum
-from typing import Union
+from typing import Union, List, Tuple
 
 
 class Channels(Enum):
@@ -69,7 +69,7 @@ def save_fig(x, y, path, xlabel=None, ylabel=None, title=None, remove_dev=False)
             if devs[i] > 2:
                 y[i] = (y[i-2] + y[i+2])/2
     fig, ax = plt.subplots(figsize=(5, 3))
-    ax.plot(x, y)
+    ax.plot(x*1e6, y)
     if xlabel:
         ax.set_xlabel(xlabel)
     if ylabel:
@@ -101,9 +101,31 @@ def index_for_wavelength(wls, w) -> Union[None, int]:
 
 
 def iter_chunks(iterable, size):
+    """Returns chunks of an iterable at a time.
+    """
     it = iter(iterable)
     while True:
         chunk = tuple(itertools.islice(it, size))
         if len(chunk) == 0:
             break
         yield chunk
+
+
+def compute_splits(points, size) -> List[Tuple[int, int]]:
+    """Compute index ranges of a given size from a maximum number of indices.
+    """
+    splits = []
+    points_left = points
+    cursor = 0
+    while True:
+        if points_left > size:
+            splits.append((cursor, cursor+size))
+            cursor += size
+            points_left -= size
+            continue
+        if points_left == 0:
+            break
+        else:
+            splits.append((cursor, cursor+points_left))
+        break
+    return splits
