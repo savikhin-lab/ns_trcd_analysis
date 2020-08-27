@@ -50,8 +50,7 @@ def assemble(input_dir, output_file):
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
 @click.option("-p", "--perp", is_flag=True, help="Compute dA with the perpendicular channel rather than parallel.")
-@click.option("--without-pump", is_flag=True, help="Compute dA when there are with and without pump shots.")
-def da(input_file, output_file, average, subtract_background, fig, txt, perp, without_pump):
+def da(input_file, output_file, average, subtract_background, fig, txt, perp):
     """Compute dA from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -59,6 +58,7 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp, wi
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            without_pump = (pump_states == 2)
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
             if perp:
@@ -94,8 +94,7 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp, wi
 @click.option("-s", "--subtract-background", is_flag=True, help="Subtract a linear background from dA.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
 @click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
-@click.option("--without-pump", is_flag=True, help="Compute dA when there are with and without pump shots.")
-def cd(input_file, output_file, delta, average, subtract_background, fig, txt, without_pump):
+def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
     """Compute dCD from a raw data file.
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
@@ -103,6 +102,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt, w
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
             (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            without_pump = (pump_states == 2)
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
             if without_pump:
@@ -148,11 +148,23 @@ def inspect(input_file, output_dir, format, channel, wavelength):
         if format == "da":
             images.dump_da_images(output_dir, dataset, wl_idx)
         elif format == "raw":
+            pump_states = dataset.shape[4]
+            if without_pump:
+                if pump_states > 1:
+                    pump_idx = 1
+                else:
+                    click.echo("Data file only contains with-pump data.")
+                    return
+            else:
+                pump_idx = 0
             if not channel:
                 click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
                 return
             chan = core.CHANNEL_MAP[channel]
-            images.dump_raw_images(output_dir, chan, dataset, wl_idx)
+            if fig:
+                images.dump_raw_images(Path(fig), chan, dataset, wl_idx, pump_idx)
+            if txt:
+                compute.save_raw_shots_as_txt(Path(txt), dataset, wl_idx, chan, pump_idx)
         else:
             click.echo("Invalid data format", err=True)
             return
