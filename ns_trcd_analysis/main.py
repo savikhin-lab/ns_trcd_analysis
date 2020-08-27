@@ -135,7 +135,8 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
 @click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to inspect.")
 @click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
-def extract(input_file, fig, txt, format, channel, wavelength, without_pump):
+@click.option("-a", "--average", is_flag=True, help="Extract only averaged data if it exists.")
+def extract(input_file, fig, txt, format, channel, wavelength, without_pump, average):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
@@ -148,33 +149,48 @@ def extract(input_file, fig, txt, format, channel, wavelength, without_pump):
         if wl_idx is None:
             click.echo("Wavelength not found.")
             return
-        dataset = infile["data"]
-        if format == "da":
-            if fig:
-                images.dump_da_images(Path(fig), dataset, wl_idx)
-            if txt:
-                compute.save_da_shots_as_txt(Path(txt), dataset, wl_idx)
-        elif format == "raw":
-            pump_states = dataset.shape[4]
-            if without_pump:
-                if pump_states > 1:
-                    pump_idx = 1
-                else:
-                    click.echo("Data file only contains with-pump data.")
-                    return
-            else:
-                pump_idx = 0
-            if not channel:
-                click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
+        if average:
+            try:
+                data = infile["average"][:, wl_idx]
+            except KeyError:
+                click.echo("File does not contain averaged dA or dCD data.")
                 return
-            chan = core.CHANNEL_MAP[channel]
-            if fig:
-                images.dump_raw_images(Path(fig), chan, dataset, wl_idx, pump_idx)
+            ts = core.time_axis(length=len(data))
             if txt:
-                compute.save_raw_shots_as_txt(Path(txt), dataset, wl_idx, chan, pump_idx)
+                txt_data = np.empty((len(data), 2))
+                txt_data[:, 0] = ts
+                txt_data[:, 1] = data
+                core.save_txt(txt_data, Path(txt))
+            if fig:
+                core.save_fig(ts, data, Path(fig))
         else:
-            click.echo("Invalid data format", err=True)
-            return
+            dataset = infile["data"]
+            if format == "da":
+                if fig:
+                    images.dump_da_images(Path(fig), dataset, wl_idx)
+                if txt:
+                    compute.save_da_shots_as_txt(Path(txt), dataset, wl_idx)
+            elif format == "raw":
+                pump_states = dataset.shape[4]
+                if without_pump:
+                    if pump_states > 1:
+                        pump_idx = 1
+                    else:
+                        click.echo("Data file only contains with-pump data.")
+                        return
+                else:
+                    pump_idx = 0
+                if not channel:
+                    click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
+                    return
+                chan = core.CHANNEL_MAP[channel]
+                if fig:
+                    images.dump_raw_images(Path(fig), chan, dataset, wl_idx, pump_idx)
+                if txt:
+                    compute.save_raw_shots_as_txt(Path(txt), dataset, wl_idx, chan, pump_idx)
+            else:
+                click.echo("Invalid data format", err=True)
+                return
 
 
 @click.command()
