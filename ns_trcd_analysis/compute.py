@@ -157,10 +157,10 @@ def line(x, m, b) -> np.ndarray:
     return m * x + b
 
 
-def save_avg_as_txt(f, outdir):
+def save_avg_as_txt(f, outdir, ds_name="average"):
     """Save the average dA for each wavelength as a CSV file.
     """
-    da = f["average"]
+    da = f[ds_name]
     points, wls = da.shape
     ts = core.time_axis(length=points)
     outdata = np.empty((points, 2))
@@ -194,10 +194,10 @@ def save_avg_as_png(f, outdir, xlabel=None, ylabel=None, title=None):
     return
 
 
-def save_da_figures(f, outdir):
+def save_avg_da_figures(f, outdir, ds_name="average"):
     """Save the average dA for each wavelength as a PNG file.
     """
-    da = f["average"]
+    da = f[ds_name]
     points, wls = da.shape
     ts = core.time_axis(length=points)
     outdata = np.empty((points, 2))
@@ -212,10 +212,10 @@ def save_da_figures(f, outdir):
     return
 
 
-def save_cd_figures(f, outdir):
+def save_avg_cd_figures(f, outdir, ds_name="average"):
     """Save the average dA for each wavelength as a PNG file.
     """
-    cd = f["average"]
+    cd = f[ds_name]
     points, wls = cd.shape
     ts = core.time_axis(length=points)
     outdata = np.empty((points, 2))

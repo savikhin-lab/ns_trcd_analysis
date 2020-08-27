@@ -75,7 +75,7 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
                 if txt:
                     compute.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_da_figures(outfile, Path(fig))
+                    compute.save_avg_da_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -116,7 +116,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
                 if txt:
                     compute.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_cd_figures(outfile, Path(fig))
+                    compute.save_avg_cd_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -133,10 +133,11 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("-t", "--txt-path", "txt", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store CSVs of each shot.")
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
-@click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to inspect.")
+@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
 @click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
 @click.option("-a", "--average", is_flag=True, help="Extract only averaged data if it exists.")
-def extract(input_file, fig, txt, format, channel, wavelength, without_pump, average):
+@click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data")
+def extract(input_file, fig, txt, format, channel, wavelength, without_pump, average, osc_free):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
@@ -145,26 +146,40 @@ def extract(input_file, fig, txt, format, channel, wavelength, without_pump, ave
         click.echo("Please select an output format with the -f/-t options.")
         return
     with h5py.File(input_file, "r") as infile:
-        wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
-        if wl_idx is None:
-            click.echo("Wavelength not found.")
+        if average and osc_free:
+            click.echo("Please choose either averaged or oscillation-free data, not both.")
             return
         if average:
             try:
-                data = infile["average"][:, wl_idx]
+                _ = infile["average"]
             except KeyError:
                 click.echo("File does not contain averaged dA or dCD data.")
                 return
-            ts = core.time_axis(length=len(data))
             if txt:
-                txt_data = np.empty((len(data), 2))
-                txt_data[:, 0] = ts
-                txt_data[:, 1] = data
-                core.save_txt(txt_data, Path(txt))
+                compute.save_avg_as_txt(infile, Path(txt))
             if fig:
-                core.save_fig(ts, data, Path(fig))
+                compute.save_avg_da_figures(infile, Path(fig))
+            return
+        elif osc_free:
+            try:
+                _ = infile["osc_free"]
+            except KeyError:
+                click.echo("File does not contain oscillation-free dA or dCD data.")
+                return
+            if txt:
+                compute.save_avg_as_txt(infile, Path(txt), ds_name="osc_free")
+            if fig:
+                compute.save_avg_da_figures(infile, Path(fig), ds_name="osc_free")
+            return
         else:
             dataset = infile["data"]
+            if not wavelength:
+                click.echo("Please choose a wavelength.")
+                return
+            wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+            if wl_idx is None:
+                click.echo("Wavelength not found.")
+                return
             if format == "da":
                 if fig:
                     images.dump_da_images(Path(fig), dataset, wl_idx)
@@ -234,8 +249,31 @@ def average(input_file, fig, txt):
         if txt:
             compute.save_avg_as_txt(file, Path(txt))
         if fig:
-            compute.save_da_figures(file, Path(fig))
+            compute.save_avg_da_figures(file, Path(fig))
     return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to subtract oscillations from.")
+@click.option("-t", "--txt-data", "txt", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscillation data in text format.")
+def rmosc(input_file, txt):
+    """Remove oscillations from averaged dA or dCD data.
+    """
+    with h5py.File(input_file, "r+") as infile:
+        try:
+            avg_data = infile["average"]
+        except KeyError:
+            click.echo("File does not contain averaged dA or dCD data.")
+            return
+        osc_data = np.loadtxt(Path(txt), delimiter=",")[:, 1]
+        if len(avg_data[:, 0]) != len(osc_data):
+            click.echo("Averaged data and oscillation data are not the same length.")
+            return
+        num_wls = avg_data.shape[1]
+        infile.copy(infile["average"], "osc_free")
+        for i in range(num_wls):
+            infile["osc_free"][:, i] -= osc_data
+        return
 
 
 @click.command()
@@ -410,3 +448,4 @@ cli.add_command(absslice)
 cli.add_command(lfit)
 cli.add_command(split)
 cli.add_command(average)
+cli.add_command(rmosc)
