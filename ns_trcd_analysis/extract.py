@@ -5,7 +5,7 @@ def save_avg_as_txt(f, outdir, ds_name="average"):
     points, wls = da.shape
     ts = core.time_axis(length=points)
     outdata = np.empty((points, 2))
-    outdata[:, 0] = ts
+    outdata[:, 0] = ts*1e6
     wavelengths = f["wavelengths"]
     if not outdir.exists():
         outdir.mkdir()
