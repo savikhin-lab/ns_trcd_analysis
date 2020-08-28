@@ -100,7 +100,7 @@ def save_da_shots_as_txt(outdir, ds, wl_idx):
     with click.progressbar(range(shots), label="Saving CSVs") as indices:
         for shot_idx in indices:
             save_data = np.empty((points, 2))
-            save_data[:, 0] = ts
+            save_data[:, 0] = ts*1e6
             save_data[:, 1] = tmp[:, shot_idx, wl_idx]
             filename = f"{shot_idx+1:03d}.txt"
             filepath = outdir / filename
@@ -120,9 +120,33 @@ def save_raw_shots_as_txt(outdir, ds, wl_idx, chan, pump_idx):
     with click.progressbar(range(shots), label="Saving CSVs") as indices:
         for shot_idx in indices:
             save_data = np.empty((points, 2))
-            save_data[:, 0] = ts
+            save_data[:, 0] = ts*1e6
             save_data[:, 1] = tmp[:, chan.value, shot_idx, wl_idx, pump_idx]
             filename = f"{shot_idx+1:03d}.txt"
             filepath = outdir / filename
             np.savetxt(filepath, save_data, delimiter=",")
+    return
+
+
+def make_import_script(filenames, output_file, drive="Z"):
+    """Generate a script that will import the specified files.
+    """
+    lines = []
+    lines.append("print \"first spectrum for storage = \",?firstspec")
+    lines.append("storespec = firstspec")
+    lines.append("print \"\\nworking...\\n\"")
+    for i in range(len(filenames)):
+        original_filename = filenames[i]
+        new_filename = "Z:" + str(original_filename).replace("/", "\\")
+        lines.append(f"file$ = \"{new_filename}\"")
+        lines.append("open file$ input 1")
+        lines.append("spec0 = storespec")
+        lines.append("len0 = 0")
+        lines.append("print #1,?spec0 \"xy\"")
+        lines.append("close 1")
+        lines.append(f"comment0$ = \"{original_filename.stem}\"")
+        lines.append("storespec = storespec + 1")
+    contents = "\r\n".join(lines) + "\r\n"
+    with output_file.open("w") as file:
+        file.write(contents)
     return

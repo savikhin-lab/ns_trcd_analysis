@@ -332,6 +332,24 @@ def gfitfile(input_dir, output_file, lifetimes, input_spec, output_spec, instr_s
 
 
 @click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files.")
+@click.option("-o", "--output-file", "output_file", type=click.Path(exists=False, file_okay=True, dir_okay=False), help="The filename of the generated script.")
+def importscript(input_dir, output_file):
+    """Generate a script that imports the files in the specified directory.
+
+    When run, the script will ask the user for the first spectrum in which to store the data.
+    """
+    input_dir = Path(input_dir)
+    outfile = Path(output_file)
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    if len(files) == 0:
+        click.echo("No valid files found in specified directory.")
+        return
+    extract.make_import_script(files, outfile)
+    return
+
+
+@click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
 @click.option("-d", "--data-format", type=click.Choice(["raw", "da"]), required=True, help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to slice.")
@@ -506,3 +524,4 @@ cli.add_command(average)
 cli.add_command(rmosc)
 cli.add_command(rmoffset)
 cli.add_command(gfitfile)
+cli.add_command(importscript)
