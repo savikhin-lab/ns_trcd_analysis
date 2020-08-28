@@ -5,6 +5,7 @@ from pathlib import Path
 from . import core
 from . import compute
 from . import extract
+from . import gfit
 from . import images
 from . import raw2hdf5
 from . import slices
@@ -312,6 +313,25 @@ def rmoffset(input_file, points, each, average, osc_free):
 
 
 @click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the original data files (used for task names).")
+@click.option("-o", "--output-file", "output_file", type=click.Path(exists=False, file_okay=True, dir_okay=False), help="The filename of the generated fit file.")
+@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=click.FLOAT, help="The initial guesses for each lifetime. Multiple instances of this option are allowed.")
+@click.option("--input-spec", required=True, type=click.INT, help="The first spectrum to read from.")
+@click.option("--output-spec", required=True, type=click.INT, help="The first spectrum to write to.")
+@click.option("--instr-spec", required=True, type=click.INT, help="The spectrum that holds the instrument function.")
+def gfitfile(input_dir, output_file, lifetimes, input_spec, output_spec, instr_spec):
+    indir = Path(input_dir)
+    task_names = [f.stem for f in indir.iterdir() if f.suffix == ".txt"]
+    task_names = sorted(task_names)
+    amplitudes = [1 for _ in range(len(lifetimes))]
+    outfile = Path(output_file)
+    contents = gfit.global_fit_file(task_names, lifetimes, amplitudes, input_spec, output_spec, instr_spec)
+    with outfile.open("w") as file:
+        file.write(contents)
+    return
+
+
+@click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
 @click.option("-d", "--data-format", type=click.Choice(["raw", "da"]), required=True, help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to slice.")
@@ -485,3 +505,4 @@ cli.add_command(split)
 cli.add_command(average)
 cli.add_command(rmosc)
 cli.add_command(rmoffset)
+cli.add_command(gfitfile)
