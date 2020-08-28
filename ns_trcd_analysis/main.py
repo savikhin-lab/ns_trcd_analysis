@@ -350,6 +350,24 @@ def importscript(input_dir, output_file):
 
 
 @click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files to shift.")
+@click.option("-t", "--time-shift", required=True, type=click.FLOAT, help="The time in seconds by which to shift the time.")
+def tshift(input_dir, time_shift):
+    """Shift the time axis of data files in the specified directory.
+    """
+    input_dir = Path(input_dir)
+    files = [f for f in input_dir.iterdir() if f.suffix == ".txt"]
+    if len(files) == 0:
+        click.echo("No valid files found in specified directory.")
+        return
+    for f in files:
+        data = np.loadtxt(f, delimiter=",")
+        data[:, 0] += time_shift*1e6
+        np.savetxt(f, data, delimiter=",")
+    return
+
+
+@click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
 @click.option("-d", "--data-format", type=click.Choice(["raw", "da"]), required=True, help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to slice.")
@@ -525,3 +543,4 @@ cli.add_command(rmosc)
 cli.add_command(rmoffset)
 cli.add_command(gfitfile)
 cli.add_command(importscript)
+cli.add_command(tshift)
