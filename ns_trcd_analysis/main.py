@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 from . import core
 from . import compute
+from . import extract
 from . import images
 from . import raw2hdf5
 from . import slices
@@ -55,9 +56,10 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
     """
+    click.echo("Loading file...")
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
-            (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            (points, _, shots, wavelengths, pump_states) = infile["data"].shape
             without_pump = (pump_states == 2)
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
@@ -73,9 +75,9 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
             if average:
                 compute.average(outfile)
                 if txt:
-                    compute.save_avg_as_txt(outfile, Path(txt))
+                    extract.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_avg_da_figures(outfile, Path(fig))
+                    extract.save_avg_da_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -99,9 +101,10 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
     """
+    click.echo("Loading file...")
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
-            (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            (points, _, shots, wavelengths, pump_states) = infile["data"].shape
             without_pump = (pump_states == 2)
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
@@ -114,9 +117,9 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
             if average:
                 compute.average(outfile)
                 if txt:
-                    compute.save_avg_as_txt(outfile, Path(txt))
+                    extract.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_avg_cd_figures(outfile, Path(fig))
+                    extract.save_avg_cd_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -137,7 +140,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
 @click.option("-a", "--average", is_flag=True, help="Extract only averaged data if it exists.")
 @click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data")
-def extract(input_file, fig, txt, format, channel, wavelength, without_pump, average, osc_free):
+def export(input_file, fig, txt, format, channel, wavelength, without_pump, average, osc_free):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
@@ -156,9 +159,9 @@ def extract(input_file, fig, txt, format, channel, wavelength, without_pump, ave
                 click.echo("File does not contain averaged dA or dCD data.")
                 return
             if txt:
-                compute.save_avg_as_txt(infile, Path(txt))
+                extract.save_avg_as_txt(infile, Path(txt))
             if fig:
-                compute.save_avg_da_figures(infile, Path(fig))
+                extract.save_avg_da_figures(infile, Path(fig))
             return
         elif osc_free:
             try:
@@ -167,9 +170,9 @@ def extract(input_file, fig, txt, format, channel, wavelength, without_pump, ave
                 click.echo("File does not contain oscillation-free dA or dCD data.")
                 return
             if txt:
-                compute.save_avg_as_txt(infile, Path(txt), ds_name="osc_free")
+                extract.save_avg_as_txt(infile, Path(txt), ds_name="osc_free")
             if fig:
-                compute.save_avg_da_figures(infile, Path(fig), ds_name="osc_free")
+                extract.save_avg_da_figures(infile, Path(fig), ds_name="osc_free")
             return
         else:
             dataset = infile["data"]
@@ -184,7 +187,7 @@ def extract(input_file, fig, txt, format, channel, wavelength, without_pump, ave
                 if fig:
                     images.dump_da_images(Path(fig), dataset, wl_idx)
                 if txt:
-                    compute.save_da_shots_as_txt(Path(txt), dataset, wl_idx)
+                    extract.save_da_shots_as_txt(Path(txt), dataset, wl_idx)
             elif format == "raw":
                 pump_states = dataset.shape[4]
                 if without_pump:
@@ -202,7 +205,7 @@ def extract(input_file, fig, txt, format, channel, wavelength, without_pump, ave
                 if fig:
                     images.dump_raw_images(Path(fig), chan, dataset, wl_idx, pump_idx)
                 if txt:
-                    compute.save_raw_shots_as_txt(Path(txt), dataset, wl_idx, chan, pump_idx)
+                    extract.save_raw_shots_as_txt(Path(txt), dataset, wl_idx, chan, pump_idx)
             else:
                 click.echo("Invalid data format", err=True)
                 return
@@ -247,9 +250,9 @@ def average(input_file, fig, txt):
     with h5py.File(input_file, "r+") as file:
         compute.average(file)
         if txt:
-            compute.save_avg_as_txt(file, Path(txt))
+            extract.save_avg_as_txt(file, Path(txt))
         if fig:
-            compute.save_avg_da_figures(file, Path(fig))
+            extract.save_avg_da_figures(file, Path(fig))
     return
 
 
@@ -466,14 +469,14 @@ def lfit(input_file, output_file, figpath, txtpath, lifetimes):
             return
         fit_results = compute.local_fits(infile, lifetimes)
     with Path(output_file).open("w") as outfile:
-        compute.save_lfit_params_as_txt(fit_results, outfile)
+        extract.save_lfit_params_as_txt(fit_results, outfile)
     return
 
 
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
-cli.add_command(extract)
+cli.add_command(export)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
 cli.add_command(absslice)
