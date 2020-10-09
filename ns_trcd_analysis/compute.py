@@ -225,3 +225,32 @@ def remove_avg_offsets(dataset, offset_points, ds_name="average"):
             tmp[:, wl_idx] = shot
     dataset.write_direct(tmp)
     return
+
+
+def collapse(data, times, cpoints):
+    """Reduce the number of points in a dataset by averaging multiple points together.
+    """
+    # Just copy the whole array, we'll need all of the points before the second period anyway
+    tmp = np.copy(data)
+    # Fast forward to the beginning of the second period
+    orig_t_idx = 0
+    cutoff_indices = []
+    for t in times:
+        while True:
+            if data[orig_t_idx, 0] < t:
+                orig_t_idx += 1
+            else:
+                cutoff_indices.append(orig_t_idx)
+                break
+    cutoff_indices.append(data.shape[0]+1)
+    output_idx = cutoff_indices[0]
+    for i in range(len(cutoff_indices)-1):
+        start = cutoff_indices[i]
+        stop = cutoff_indices[i+1]
+        num_splits = np.ceil((stop - start)/cpoints[i])
+        splits = np.asarray(np.array_split(data[start:stop, :], num_splits))
+        for s in splits:
+            tmp[output_idx, :] = s.mean(axis=0)
+            output_idx += 1
+    output_data = tmp[:output_idx, :]
+    return output_data

@@ -362,8 +362,42 @@ def tshift(input_dir, time_shift):
         return
     for f in files:
         data = np.loadtxt(f, delimiter=",")
-        data[:, 0] += time_shift*1e6
+        data[:, 0] += time_shift
         np.savetxt(f, data, delimiter=",")
+    return
+
+
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files to collapse.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store the collapsed data.")
+@click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse.")
+@click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval.")
+def collapse(input_dir, output_dir, times, cpoints):
+    """Collapse the data in the specified files so that later times use fewer points.
+    """
+    if len(times) != len(cpoints):
+        click.echo("There must be as many cutoff times as there are chunk sizes.")
+        return
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    if not output_dir.exists():
+        output_dir.mkdir()
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    data = np.loadtxt(files[0], delimiter=",")
+    ts = data[:, 0]
+    all_data = np.empty((len(ts), len(files)+1))
+    all_data[:, 0] = ts
+    for i in range(len(files)):
+        data = np.loadtxt(files[i], delimiter=",")
+        all_data[:, i+1] = data[:, 1]
+    collapsed_data = compute.collapse(all_data, times, cpoints)
+    collapsed_points, _ = collapsed_data.shape
+    for i in range(len(files)):
+        save_data = np.empty((collapsed_points, 2))
+        save_data[:, 0] = collapsed_data[:, 0]
+        save_data[:, 1] = collapsed_data[:, i+1]
+        outfile = output_dir / files[i].name
+        np.savetxt(outfile, save_data, delimiter=",")
     return
 
 
@@ -544,3 +578,4 @@ cli.add_command(rmoffset)
 cli.add_command(gfitfile)
 cli.add_command(importscript)
 cli.add_command(tshift)
+cli.add_command(collapse)
