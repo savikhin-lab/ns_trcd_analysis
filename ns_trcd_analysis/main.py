@@ -300,7 +300,8 @@ def rmosc(input_file, txt):
 @click.option("--each", is_flag=True, help="Remove the offset of each dA or dCD shot.")
 @click.option("--average", is_flag=True, help="Remove the offset of the averaged dA or dCD data.")
 @click.option("--osc-free", is_flag=True, help="Remove the offset of the oscillation-free dA or dCD data.")
-def rmoffset(input_file, points, each, average, osc_free):
+@click.option("--collapsed", is_flag=True, help="Remove the offset of the collapsed dA or dCD data.")
+def rmoffset(input_file, points, each, average, osc_free, collapsed):
     """Shift curves up or down such that the values before the pump are centered on zero.
     """
     with h5py.File(input_file, "r+") as file:
@@ -323,6 +324,13 @@ def rmoffset(input_file, points, each, average, osc_free):
                 click.echo("File does not contain oscillation-free data.")
                 return
             compute.remove_avg_offsets(file["osc_free"], points, ds_name="osc_free")
+        if collapsed:
+            try:
+                file["collapsed"]
+            except KeyError:
+                click.echo("File does not contain collaped data.")
+                return
+            compute.remove_avg_offsets(file["collapsed"], points, ds_name="collapsed")
     return
 
 
