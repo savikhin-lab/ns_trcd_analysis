@@ -70,7 +70,7 @@ def save_fig(x, y, path, xlabel=None, ylabel=None, title=None, remove_dev=False)
             if devs[i] > 2:
                 y[i] = (y[i-2] + y[i+2])/2
     fig, ax = plt.subplots(figsize=(5, 3))
-    ax.plot(x*1e6, y, linewidth=0.5)
+    ax.plot(x, y, linewidth=0.5)
     if xlabel:
         ax.set_xlabel(xlabel)
     if ylabel:
@@ -88,6 +88,7 @@ def time_axis(tpp=20e-9, length=20_000) -> np.ndarray:
     ts = tpp * np.arange(length)
     ten_percent_point = np.floor(length/10) * tpp
     ts -= ten_percent_point
+    ts *= 1e6  # convert from seconds to microseconds
     return ts
 
 

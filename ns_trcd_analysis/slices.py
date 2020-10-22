@@ -1,3 +1,4 @@
+import click
 import h5py
 import numpy as np
 from typing import Union
@@ -13,7 +14,7 @@ def valid_shot_slice_point(slice_time, slice_index, points) -> bool:
     if (slice_time is not None) and (slice_index is not None):
         click.echo("Specify slice index or time, but not both", err=True)
         return False
-    if (slice_index is not None) and ((slice_index < 0) or (slice_index >= 20_000)):
+    if (slice_index is not None) and ((slice_index < 0) or (slice_index >= (points - 1))):
         click.echo("Slice index out of range.")
         return False
     return True
