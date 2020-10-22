@@ -385,16 +385,16 @@ def tshift(input_dir, time_shift):
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the data to collapse.")
 @click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse.")
 @click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval.")
-@click.option("--from-averaged", required=False, is_flag=True, help="Collapse averaged data.")
-@click.option("--from-osc-free", required=False, is_flag=True, help="Collapse oscillation-free data.")
-def collapse(input_file, times, cpoints, from_averaged, from_osc_free):
+@click.option("--averaged", required=False, is_flag=True, help="Collapse averaged data.")
+@click.option("--osc-free", required=False, is_flag=True, help="Collapse oscillation-free data.")
+def collapse(input_file, times, cpoints, averaged, osc_free):
     """Collapse the data in the specified file so that later times use fewer points.
 
     """
     if len(times) != len(cpoints):
         click.echo("There must be as many cutoff times as there are chunk sizes.")
         return
-    if (from_averaged and from_osc_free) or ((not from_averaged) and (not from_osc_free)):
+    if (averaged and osc_free) or ((not averaged) and (not osc_free)):
         click.echo("You must choose one of '--from-averaged' or '--from-osc-free'.")
         return
     with h5py.File(input_file, "r+") as infile:
@@ -402,13 +402,13 @@ def collapse(input_file, times, cpoints, from_averaged, from_osc_free):
             del infile["collapsed"]
         except KeyError:
             pass
-        if from_averaged:
+        if averaged:
             try:
                 data = infile["average"]
             except KeyError:
                 click.echo("File does not contain averaged data.")
                 return
-        if from_osc_free:
+        if osc_free:
             try:
                 data = infile["osc_free"]
             except KeyError:
