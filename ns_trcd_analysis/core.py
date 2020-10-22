@@ -70,7 +70,7 @@ def save_fig(x, y, path, xlabel=None, ylabel=None, title=None, remove_dev=False)
             if devs[i] > 2:
                 y[i] = (y[i-2] + y[i+2])/2
     fig, ax = plt.subplots(figsize=(5, 3))
-    ax.plot(x*1e6, y)
+    ax.plot(x*1e6, y, linewidth=0.5)
     if xlabel:
         ax.set_xlabel(xlabel)
     if ylabel:
