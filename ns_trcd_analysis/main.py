@@ -4,7 +4,10 @@ import numpy as np
 from pathlib import Path
 from . import core
 from . import compute
+from . import extract
+from . import gfit
 from . import images
+from . import noise
 from . import raw2hdf5
 from . import slices
 from .core import Channels, valid_channel
@@ -55,23 +58,28 @@ def da(input_file, output_file, average, subtract_background, fig, txt, perp):
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
     """
+    click.echo("Loading file...")
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
-            (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            (points, _, shots, wavelengths, pump_states) = infile["data"].shape
+            without_pump = (pump_states == 2)
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
             if perp:
                 compute.compute_perp_da(infile, outfile)
             else:
-                compute.compute_da(infile, outfile)
+                if without_pump:
+                    compute.compute_da_with_and_without_pump(infile, outfile)
+                else:
+                    compute.compute_da_always_pumped(infile, outfile)
             if subtract_background:
                 compute.subtract_background(outfile)
             if average:
                 compute.average(outfile)
                 if txt:
-                    compute.save_avg_as_txt(outfile, Path(txt))
+                    extract.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_da_figures(outfile, Path(fig))
+                    extract.save_avg_da_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -95,20 +103,25 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 
     The output is stored in a separate file (OUTPUT_FILE) with the shape (points, shots, wavelengths).
     """
+    click.echo("Loading file...")
     with h5py.File(output_file, "w") as outfile:
         with h5py.File(input_file, "r") as infile:
-            (points, channels, shots, wavelengths, pump_states) = infile["data"].shape
+            (points, _, shots, wavelengths, pump_states) = infile["data"].shape
+            without_pump = (pump_states == 2)
             outfile.create_dataset("data", (points, shots, wavelengths))
             outfile.create_dataset("wavelengths", (wavelengths,), data=infile["wavelengths"])
-            compute.compute_cd_approx(infile, outfile, delta)
+            if without_pump:
+                compute.compute_cd_with_and_without_pump(infile, outfile, delta)
+            else:
+                compute.compute_cd_always_pumped(infile, outfile, delta)
             if subtract_background:
                 compute.subtract_background(outfile)
             if average:
                 compute.average(outfile)
                 if txt:
-                    compute.save_avg_as_txt(outfile, Path(txt))
+                    extract.save_avg_as_txt(outfile, Path(txt))
                 if fig:
-                    compute.save_cd_figures(outfile, Path(fig))
+                    extract.save_avg_cd_figures(outfile, Path(fig))
             else:
                 if txt:
                     click.echo("Saving a CSV requires averaging. See the '-a' option.", err=True)
@@ -121,33 +134,272 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw or dA data file to read from.")
-@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the images.")
+@click.option("-f", "--figure-path", "fig", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store images of each shot.")
+@click.option("-t", "--txt-path", "txt", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store CSVs of each shot.")
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
-@click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to inspect.")
-def inspect(input_file, output_dir, format, channel, wavelength):
+@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
+@click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
+@click.option("-a", "--average", is_flag=True, help="Extract only averaged data if it exists.")
+@click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data")
+def export(input_file, fig, txt, format, channel, wavelength, without_pump, average, osc_free):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
-    output_dir = Path(output_dir)
+    if (not fig) and (not txt):
+        click.echo("Please select an output format with the -f/-t options.")
+        return
     with h5py.File(input_file, "r") as infile:
-        wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
-        if wl_idx is None:
-            click.echo("Wavelength not found.")
+        if average and osc_free:
+            click.echo("Please choose either averaged or oscillation-free data, not both.")
             return
-        dataset = infile["data"]
-        if format == "da":
-            images.dump_da_images(output_dir, dataset, wl_idx)
-        elif format == "raw":
-            if not channel:
-                click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
+        if average:
+            try:
+                _ = infile["average"]
+            except KeyError:
+                click.echo("File does not contain averaged dA or dCD data.")
                 return
-            chan = core.CHANNEL_MAP[channel]
-            images.dump_raw_images(output_dir, chan, dataset, wl_idx)
-        else:
-            click.echo("Invalid data format", err=True)
+            if txt:
+                extract.save_avg_as_txt(infile, Path(txt))
+            if fig:
+                extract.save_avg_da_figures(infile, Path(fig))
             return
+        elif osc_free:
+            try:
+                _ = infile["osc_free"]
+            except KeyError:
+                click.echo("File does not contain oscillation-free dA or dCD data.")
+                return
+            if txt:
+                extract.save_avg_as_txt(infile, Path(txt), ds_name="osc_free")
+            if fig:
+                extract.save_avg_da_figures(infile, Path(fig), ds_name="osc_free")
+            return
+        else:
+            dataset = infile["data"]
+            if not wavelength:
+                click.echo("Please choose a wavelength.")
+                return
+            wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+            if wl_idx is None:
+                click.echo("Wavelength not found.")
+                return
+            if format == "da":
+                if fig:
+                    images.dump_da_images(Path(fig), dataset, wl_idx)
+                if txt:
+                    extract.save_da_shots_as_txt(Path(txt), dataset, wl_idx)
+            elif format == "raw":
+                pump_states = dataset.shape[4]
+                if without_pump:
+                    if pump_states > 1:
+                        pump_idx = 1
+                    else:
+                        click.echo("Data file only contains with-pump data.")
+                        return
+                else:
+                    pump_idx = 0
+                if not channel:
+                    click.echo("Raw data format requires a channel specifier. See the '-c' option.", err=True)
+                    return
+                chan = core.CHANNEL_MAP[channel]
+                if fig:
+                    images.dump_raw_images(Path(fig), chan, dataset, wl_idx, pump_idx)
+                if txt:
+                    extract.save_raw_shots_as_txt(Path(txt), dataset, wl_idx, chan, pump_idx)
+            else:
+                click.echo("Invalid data format", err=True)
+                return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to split.")
+@click.option("-s", "--size", required=True, type=click.INT, help="The number of shots in each split.")
+def split(input_file, size):
+    """Split a data file into chunks of a given size.
+
+    This only works for dA and dCD files. If the total number of shots isn't a multiple of `size`, the last split
+    will contain fewer shots.
+    """
+    input_file_path = Path(input_file)
+    parent_path = input_file_path.parent
+    input_file_stem = input_file_path.stem
+    with h5py.File(input_file, "r") as infile:
+        points, shots, wavelengths = infile["data"].shape
+        original = np.empty((points, shots, wavelengths))
+        infile["data"].read_direct(original)
+        splits = core.compute_splits(shots, size)
+        for i, (start, stop) in enumerate(splits):
+            split_file = parent_path / (input_file_stem + f"_split{i}.h5")
+            if split_file.exists():
+                click.echo("A split file with a conflicting name already exists.")
+                return
+            with h5py.File(split_file, "w") as outfile:
+                tmp_ds = original[:, start:stop, :]
+                outfile.copy(infile["wavelengths"], "wavelengths")
+                outfile.create_dataset("data", data=tmp_ds)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
+@click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=False, dir_okay=True), help="Save a figure of the average dA. Only valid with the '-a' option.")
+@click.option("-t", "--save-txt-path", "txt", type=click.Path(file_okay=False, dir_okay=True), help="Save a CSV of the average dA. Only valid with the '-a' option.")
+def average(input_file, fig, txt):
+    """Average the data contained in a dA or dCD file.
+    """
+    with h5py.File(input_file, "r+") as file:
+        compute.average(file)
+        if txt:
+            extract.save_avg_as_txt(file, Path(txt))
+        if fig:
+            extract.save_avg_da_figures(file, Path(fig))
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to subtract oscillations from.")
+@click.option("-t", "--txt-data", "txt", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscillation data in text format.")
+def rmosc(input_file, txt):
+    """Remove oscillations from averaged dA or dCD data.
+    """
+    with h5py.File(input_file, "r+") as infile:
+        try:
+            avg_data = infile["average"]
+        except KeyError:
+            click.echo("File does not contain averaged dA or dCD data.")
+            return
+        osc_data = np.loadtxt(Path(txt), delimiter=",")[:, 1]
+        if len(avg_data[:, 0]) != len(osc_data):
+            click.echo("Averaged data and oscillation data are not the same length.")
+            return
+        num_wls = avg_data.shape[1]
+        infile.copy(infile["average"], "osc_free")
+        for i in range(num_wls):
+            infile["osc_free"][:, i] -= osc_data
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to read from.")
+@click.option("-p", "--points", default=1500, help="The number of points to use to calculate the offset (taken from the beginning of the curve.")
+@click.option("--each", is_flag=True, help="Remove the offset of each dA or dCD shot.")
+@click.option("--average", is_flag=True, help="Remove the offset of the averaged dA or dCD data.")
+@click.option("--osc-free", is_flag=True, help="Remove the offset of the oscillation-free dA or dCD data.")
+def rmoffset(input_file, points, each, average, osc_free):
+    """Shift curves up or down such that the values before the pump are centered on zero.
+    """
+    with h5py.File(input_file, "r+") as file:
+        if len(file["data"].shape) != 3:
+            click.echo("File does not contain valid dA or dCD data (wrong dimensions).")
+            return
+        if each:
+            compute.remove_da_shot_offsets(file["data"], points)
+        if average:
+            try:
+                file["average"]
+            except KeyError:
+                click.echo("File does not contain averaged data.")
+                return
+            compute.remove_avg_offsets(file["average"], points)
+        if osc_free:
+            try:
+                file["osc_free"]
+            except KeyError:
+                click.echo("File does not contain oscillation-free data.")
+                return
+            compute.remove_avg_offsets(file["osc_free"], points, ds_name="osc_free")
+    return
+
+
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the original data files (used for task names).")
+@click.option("-o", "--output-file", "output_file", type=click.Path(exists=False, file_okay=True, dir_okay=False), help="The filename of the generated fit file.")
+@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=click.FLOAT, help="The initial guesses for each lifetime. Multiple instances of this option are allowed.")
+@click.option("--input-spec", required=True, type=click.INT, help="The first spectrum to read from.")
+@click.option("--output-spec", required=True, type=click.INT, help="The first spectrum to write to.")
+@click.option("--instr-spec", required=True, type=click.INT, help="The spectrum that holds the instrument function.")
+def gfitfile(input_dir, output_file, lifetimes, input_spec, output_spec, instr_spec):
+    indir = Path(input_dir)
+    task_names = [f.stem for f in indir.iterdir() if f.suffix == ".txt"]
+    task_names = sorted(task_names)
+    amplitudes = [1 for _ in range(len(lifetimes))]
+    outfile = Path(output_file)
+    contents = gfit.global_fit_file(task_names, lifetimes, amplitudes, input_spec, output_spec, instr_spec)
+    with outfile.open("w") as file:
+        file.write(contents)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files.")
+@click.option("-o", "--output-file", "output_file", type=click.Path(exists=False, file_okay=True, dir_okay=False), help="The filename of the generated script.")
+def importscript(input_dir, output_file):
+    """Generate a script that imports the files in the specified directory.
+
+    When run, the script will ask the user for the first spectrum in which to store the data.
+    """
+    input_dir = Path(input_dir)
+    outfile = Path(output_file)
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    if len(files) == 0:
+        click.echo("No valid files found in specified directory.")
+        return
+    extract.make_import_script(files, outfile)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files to shift.")
+@click.option("-t", "--time-shift", required=True, type=click.FLOAT, help="The time in seconds by which to shift the time.")
+def tshift(input_dir, time_shift):
+    """Shift the time axis of data files in the specified directory.
+    """
+    input_dir = Path(input_dir)
+    files = [f for f in input_dir.iterdir() if f.suffix == ".txt"]
+    if len(files) == 0:
+        click.echo("No valid files found in specified directory.")
+        return
+    for f in files:
+        data = np.loadtxt(f, delimiter=",")
+        data[:, 0] += time_shift
+        np.savetxt(f, data, delimiter=",")
+    return
+
+
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files to collapse.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store the collapsed data.")
+@click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse.")
+@click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval.")
+def collapse(input_dir, output_dir, times, cpoints):
+    """Collapse the data in the specified files so that later times use fewer points.
+    """
+    if len(times) != len(cpoints):
+        click.echo("There must be as many cutoff times as there are chunk sizes.")
+        return
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    if not output_dir.exists():
+        output_dir.mkdir()
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    data = np.loadtxt(files[0], delimiter=",")
+    ts = data[:, 0]
+    all_data = np.empty((len(ts), len(files)+1))
+    all_data[:, 0] = ts
+    for i in range(len(files)):
+        data = np.loadtxt(files[i], delimiter=",")
+        all_data[:, i+1] = data[:, 1]
+    collapsed_data = compute.collapse(all_data, times, cpoints)
+    collapsed_points, _ = collapsed_data.shape
+    for i in range(len(files)):
+        save_data = np.empty((collapsed_points, 2))
+        save_data[:, 0] = collapsed_data[:, 0]
+        save_data[:, 1] = collapsed_data[:, i+1]
+        outfile = output_dir / files[i].name
+        np.savetxt(outfile, save_data, delimiter=",")
+    return
 
 
 @click.command()
@@ -308,15 +560,52 @@ def lfit(input_file, output_file, figpath, txtpath, lifetimes):
             return
         fit_results = compute.local_fits(infile, lifetimes)
     with Path(output_file).open("w") as outfile:
-        compute.save_lfit_params_as_txt(fit_results, outfile)
+        extract.save_lfit_params_as_txt(fit_results, outfile)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
+@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+def noiserep(input_file, sigmas):
+    """List the curves that would be rejected using the specified criteria.
+
+    Note: This only works with dA or dCD files.
+    """
+    with h5py.File(input_file, "r") as infile:
+        report = noise.reject_sigma(infile, sigmas)
+        click.echo(report)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected data in.")
+@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+def noise_avg(input_file, output_file, sigmas):
+    """Average dA or dCD data without including noisy shots.
+    """
+    with h5py.File(input_file, "r") as infile:
+        report = noise.reject_sigma(infile, sigmas)
+        noise.selective_average(infile, output_file, report)
     return
 
 
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
-cli.add_command(inspect)
+cli.add_command(export)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
 cli.add_command(absslice)
 cli.add_command(lfit)
+cli.add_command(split)
+cli.add_command(average)
+cli.add_command(rmosc)
+cli.add_command(rmoffset)
+cli.add_command(gfitfile)
+cli.add_command(importscript)
+cli.add_command(tshift)
+cli.add_command(collapse)
+cli.add_command(noiserep)
+cli.add_command(noise_avg)
