@@ -140,21 +140,23 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
 @click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
 @click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
-@click.option("-a", "--average", is_flag=True, help="Extract only averaged data if it exists.")
-@click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data")
-def export(input_file, fig, txt, format, channel, wavelength, without_pump, average, osc_free):
+@click.option("--averaged", is_flag=True, help="Extract only averaged data if it exists.")
+@click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data if it exists.")
+@click.option("--collapsed", is_flag=True, help="Extract only collapsed data if it exists.")
+def export(input_file, fig, txt, format, channel, wavelength, without_pump, averaged, osc_free, collapsed):
     """Generate images of each shot in a data file.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
     if (not fig) and (not txt):
-        click.echo("Please select an output format with the -f/-t options.")
+        click.echo("Please select an output format with the '-f' and '-t' options.")
+        return
+    data_options = [averaged, osc_free, collapsed]
+    if data_options.count(True) > 1:
+        click.echo("Please choose at most one of '--averaged', '--osc-free', or '--collapsed'.")
         return
     with h5py.File(input_file, "r") as infile:
-        if average and osc_free:
-            click.echo("Please choose either averaged or oscillation-free data, not both.")
-            return
-        if average:
+        if averaged:
             try:
                 _ = infile["average"]
             except KeyError:
@@ -175,6 +177,17 @@ def export(input_file, fig, txt, format, channel, wavelength, without_pump, aver
                 extract.save_avg_as_txt(infile, Path(txt), ds_name="osc_free")
             if fig:
                 extract.save_avg_da_figures(infile, Path(fig), ds_name="osc_free")
+            return
+        elif collapsed:
+            try:
+                _ = infile["collapsed"]
+            except KeyError:
+                click.echo("File does not contain collapsed data.")
+                return
+            if txt:
+                extract.save_collapsed_as_txt(infile, Path(txt))
+            if fig:
+                extract.save_collapsed_as_png(infile, Path(fig))
             return
         else:
             dataset = infile["data"]
