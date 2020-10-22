@@ -403,7 +403,7 @@ def collapse(input_file, times, cpoints, averaged, osc_free):
         click.echo("There must be as many cutoff times as there are chunk sizes.")
         return
     if (averaged and osc_free) or ((not averaged) and (not osc_free)):
-        click.echo("You must choose one of '--from-averaged' or '--from-osc-free'.")
+        click.echo("Choose a data source with '--averaged' or '--osc-free'.")
         return
     with h5py.File(input_file, "r+") as infile:
         try:
