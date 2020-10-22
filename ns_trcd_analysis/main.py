@@ -7,6 +7,7 @@ from . import compute
 from . import extract
 from . import gfit
 from . import images
+from . import noise
 from . import raw2hdf5
 from . import slices
 from .core import Channels, valid_channel
@@ -563,6 +564,33 @@ def lfit(input_file, output_file, figpath, txtpath, lifetimes):
     return
 
 
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
+@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+def noiserep(input_file, sigmas):
+    """List the curves that would be rejected using the specified criteria.
+
+    Note: This only works with dA or dCD files.
+    """
+    with h5py.File(input_file, "r") as infile:
+        report = noise.reject_sigma(infile, sigmas)
+        click.echo(report)
+    return
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected data in.")
+@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+def noise_avg(input_file, output_file, sigmas):
+    """Average dA or dCD data without including noisy shots.
+    """
+    with h5py.File(input_file, "r") as infile:
+        report = noise.reject_sigma(infile, sigmas)
+        noise.selective_average(infile, output_file, report)
+    return
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -579,3 +607,5 @@ cli.add_command(gfitfile)
 cli.add_command(importscript)
 cli.add_command(tshift)
 cli.add_command(collapse)
+cli.add_command(noiserep)
+cli.add_command(noise_avg)
