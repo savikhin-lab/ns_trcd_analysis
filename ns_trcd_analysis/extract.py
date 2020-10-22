@@ -137,9 +137,8 @@ def make_import_script(filenames, output_file, drive="Z"):
     lines.append("print \"\\nworking...\\n\"")
     for i in range(len(filenames)):
         original_filename = filenames[i]
-        new_filename = "Z:" + str(original_filename).replace("/", "\\")
-        lines.append(f"file$ = \"{new_filename}\"")
-        lines.append("open file$ input 1")
+        new_filename = "Z:" + str(original_filename.resolve()).replace("/", "\\")
+        lines.append(f"open \"{new_filename}\" input 1")
         lines.append("spec0 = storespec")
         lines.append("len0 = 0")
         lines.append("print #1,?spec0 \"xy\"")
