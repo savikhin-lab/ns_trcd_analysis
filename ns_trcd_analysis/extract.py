@@ -5,7 +5,7 @@ def save_avg_as_txt(f, outdir, ds_name="average"):
     points, wls = da.shape
     ts = core.time_axis(length=points)
     outdata = np.empty((points, 2))
-    outdata[:, 0] = ts*1e6
+    outdata[:, 0] = ts
     wavelengths = f["wavelengths"]
     if not outdir.exists():
         outdir.mkdir()
@@ -100,7 +100,7 @@ def save_da_shots_as_txt(outdir, ds, wl_idx):
     with click.progressbar(range(shots), label="Saving CSVs") as indices:
         for shot_idx in indices:
             save_data = np.empty((points, 2))
-            save_data[:, 0] = ts*1e6
+            save_data[:, 0] = ts
             save_data[:, 1] = tmp[:, shot_idx, wl_idx]
             filename = f"{shot_idx+1:03d}.txt"
             filepath = outdir / filename
@@ -120,7 +120,7 @@ def save_raw_shots_as_txt(outdir, ds, wl_idx, chan, pump_idx):
     with click.progressbar(range(shots), label="Saving CSVs") as indices:
         for shot_idx in indices:
             save_data = np.empty((points, 2))
-            save_data[:, 0] = ts*1e6
+            save_data[:, 0] = ts
             save_data[:, 1] = tmp[:, chan.value, shot_idx, wl_idx, pump_idx]
             filename = f"{shot_idx+1:03d}.txt"
             filepath = outdir / filename

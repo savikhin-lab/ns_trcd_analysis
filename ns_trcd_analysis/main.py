@@ -408,7 +408,7 @@ def collapse(input_dir, output_dir, times, cpoints):
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to slice.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
-@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
+@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time (in us).")
 @click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
 @click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to create a slice of.")
 def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex, wavelength):
@@ -449,7 +449,7 @@ def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex,
             txtdata[:, 1] = s
             core.save_txt(txtdata, txtpath)
         if figpath:
-            t = core.time_axis()[s_idx] * 1_000_000
+            t = core.time_axis()[s_idx]
             core.save_fig(shots, s, figpath, xlabel="Shot Number", title=f"{wavelength}nm, t={t:.2f}us")
     return
 
@@ -458,7 +458,7 @@ def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex,
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA data file to read from.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
-@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
+@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time (in us).")
 @click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
 def wlslice(input_file, figpath, txtpath, stime, sindex):
     """Create a dA slice at all wavelengths for a specified time.
@@ -492,7 +492,7 @@ def wlslice(input_file, figpath, txtpath, stime, sindex):
             txtdata[:, 1] = s
             core.save_txt(txtdata, txtpath)
         if figpath:
-            t = core.time_axis()[s_idx] * 1_000_000
+            t = core.time_axis()[s_idx]
             core.save_fig(wavelengths, s * 1_000, figpath, xlabel="Wavelength", ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
         return
 
@@ -501,7 +501,7 @@ def wlslice(input_file, figpath, txtpath, stime, sindex):
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The raw data file to read from.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
-@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time.")
+@click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time (in us).")
 @click.option("--slice-index", "sindex", type=click.INT, help="Select the slice at the specified index along the time axis.")
 @click.option("-w", "--wavelength", type=click.INT, required=True, help="The wavelength to create a slice of.")
 def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
@@ -538,7 +538,7 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
             txtdata[:, 1] = s
             core.save_txt(txtdata, txtpath)
         if figpath:
-            t = core.time_axis()[s_idx] * 1_000_000
+            t = core.time_axis()[s_idx]
             core.save_fig(shots, s, figpath, xlabel="Shot number", ylabel="Abs.", title=f"Slice at {wavelength}nm, t={t:.2f}us")
         return
 
@@ -548,7 +548,7 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The output file in which to store the lifetimes and amplitudes.")
 @click.option("-f", "--figure-path", "figpath", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txtpath", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
-@click.option("-l", "--lifetime", "lifetimes", type=click.FLOAT, multiple=True, required=True, help="The initial guesses for each lifetime. Multiple instances of this option are allowed.")
+@click.option("-l", "--lifetime", "lifetimes", type=click.FLOAT, multiple=True, required=True, help="The initial guesses for each lifetime in microseconds. Multiple instances of this option are allowed.")
 def lfit(input_file, output_file, figpath, txtpath, lifetimes):
     """Produce local fits of a dataset.
     """
