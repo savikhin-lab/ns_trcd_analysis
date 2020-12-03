@@ -127,7 +127,7 @@ def average(f):
     da_ds = f["data"]
     points, shots, wls = da_ds.shape
     avg_ds = f.create_dataset("average", (points, wls))
-    avg_ds.write_direct(np.mean(da_ds, axis=1))
+    avg_ds.write_direct(np.nanmean(da_ds, axis=1))
     return
 
 
