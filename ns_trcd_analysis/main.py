@@ -24,8 +24,8 @@ def cli():
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the raw experiment data files.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the assembled experiment data.")
-@click.option("-d", "--dark-signals", type=click.Path(file_okay=True, dir_okay=False), help="The file that contains the dark signals for each shot.")
-def assemble(input_dir, output_file, dark_signals):
+@click.option("-d", "--dark-signals", "dark_signals_file", default=None, type=click.Path(file_okay=True, dir_okay=False, exists=True), help="The file that contains the dark signals for each shot.")
+def assemble(input_dir, output_file, dark_signals_file):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -43,7 +43,9 @@ def assemble(input_dir, output_file, dark_signals):
     """
     in_dir = Path(input_dir)
     outfile = Path(output_file)
-    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=Path(dark_signals))
+    if dark_signals_file is not None:
+        dark_signals_file = Path(dark_signals_file)
+    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=dark_signals_file)
 
 
 @click.command()
