@@ -42,7 +42,7 @@ def assemble(input_dir, output_file, dark_signals):
     For the moment <pump states> is 1 and thus doesn't need to be there, but is included for backwards compatibility.
     """
     in_dir = Path(input_dir)
-    outfile = in_dir / output_file
+    outfile = Path(output_file)
     raw2hdf5.ingest(in_dir, outfile, dark_signals_file=Path(dark_signals))
 
 
