@@ -147,7 +147,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data if it exists.")
 @click.option("--collapsed", is_flag=True, help="Extract only collapsed data if it exists.")
 def export(input_file, fig, txt, format, channel, wavelength, without_pump, averaged, osc_free, collapsed):
-    """Generate images of each shot in a data file.
+    """Export data as CSVs or images.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
