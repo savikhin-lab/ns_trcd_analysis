@@ -86,7 +86,7 @@ def compute_cd_always_pumped(infile, outfile, delta):
     tmp_raw = np.empty((points, 3, shots, wavelengths, 1))
     tmp_cd = np.empty((points, shots, wavelengths))
     ds_in.read_direct(tmp_raw)
-    coeff = 4 / (2.3 * delta)
+    coeff = (4 * delta) / 2.3
     with click.progressbar(range(shots), label="Computing CD") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
@@ -108,7 +108,7 @@ def compute_cd_with_and_without_pump(infile, outfile, delta):
     tmp_raw = np.empty((points, 3, shots, wavelengths, 2))
     tmp_cd = np.empty((points, shots, wavelengths))
     ds_in.read_direct(tmp_raw)
-    coeff = 4 / (2.3 * delta)
+    coeff = (4 * delta) / 2.3
     with click.progressbar(range(shots), label="Computing CD") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
