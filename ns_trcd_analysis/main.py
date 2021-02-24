@@ -560,7 +560,8 @@ def wlslice(input_file, fig, txt, stime, sindex, averaged, osc_free, collapsed):
             core.save_txt(txtdata, Path(txt))
         if fig:
             t = ts[s_idx]
-            core.save_fig(wavelengths, slice_data * 1_000, fig, xlabel="Wavelength", ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
+            core.save_fig(wavelengths, slice_data * 1_000, fig, xlabel="Wavelength",
+                          ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
         return
 
 
@@ -606,7 +607,8 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
             core.save_txt(txtdata, txtpath)
         if figpath:
             t = core.time_axis()[s_idx]
-            core.save_fig(shots, s, figpath, xlabel="Shot number", ylabel="Abs.", title=f"Slice at {wavelength}nm, t={t:.2f}us")
+            core.save_fig(shots, s, figpath, xlabel="Shot number", ylabel="Abs.",
+                          title=f"Slice at {wavelength}nm, t={t:.2f}us")
         return
 
 
