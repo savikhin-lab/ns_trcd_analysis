@@ -248,7 +248,7 @@ def collapse(data, times, cpoints):
         start = cutoff_indices[i]
         stop = cutoff_indices[i+1]
         num_splits = np.ceil((stop - start)/cpoints[i])
-        splits = np.asarray(np.array_split(data[start:stop, :], num_splits))
+        splits = np.array_split(data[start:stop, :], num_splits)
         for s in splits:
             tmp[output_idx, :] = s.mean(axis=0)
             output_idx += 1
