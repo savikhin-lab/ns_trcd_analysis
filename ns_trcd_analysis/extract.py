@@ -172,7 +172,7 @@ def save_collapsed_as_png(f, outdir):
     return
 
 
-def make_import_script(filenames, output_file, drive="Z"):
+def make_import_script(filenames, output_file):
     """Generate a script that will import the specified files.
     """
     lines = []
@@ -181,7 +181,7 @@ def make_import_script(filenames, output_file, drive="Z"):
     lines.append("print \"\\nworking...\\n\"")
     for i in range(len(filenames)):
         original_filename = filenames[i]
-        new_filename = "Z:" + str(original_filename.resolve()).replace("/", "\\")
+        new_filename = str(original_filename.resolve()).replace("/", "\\")
         lines.append(f"open \"{new_filename}\" input 1")
         lines.append("spec0 = storespec")
         lines.append("len0 = 0")
