@@ -54,7 +54,8 @@ def save_avg_da_figures(f, outdir, ds_name="average"):
     with click.progressbar(range(wls), label="Saving figures") as indices:
         for wl_idx in indices:
             outpath = outdir / f"{wavelengths[wl_idx]}.png"
-            core.save_fig(ts, da[:, wl_idx]*1_000, outpath, xlabel="Time (us)", ylabel="dA (mOD)", title=f"{wavelengths[wl_idx]/100}nm", remove_dev=True)
+            core.save_fig(ts, da[:, wl_idx]*1_000, outpath, xlabel="Time (us)", ylabel="dA (mOD)",
+                          title=f"{wavelengths[wl_idx]/100}nm", remove_dev=True)
     return
 
 
@@ -72,8 +73,10 @@ def save_avg_cd_figures(f, outdir, ds_name="average"):
     with click.progressbar(range(wls), label="Saving figures") as indices:
         for wl_idx in indices:
             outpath = outdir / f"{wavelengths[wl_idx]}.png"
-            core.save_fig(ts, cd[:, wl_idx]*1_000, outpath, xlabel="Time (us)", ylabel="dCD", title=f"{wavelengths[wl_idx]/100}nm", remove_dev=True)
+            core.save_fig(ts, cd[:, wl_idx]*1_000, outpath, xlabel="Time (us)", ylabel="dCD",
+                          title=f"{wavelengths[wl_idx]/100}nm", remove_dev=True)
     return
+
 
 def save_lfit_params_as_txt(results, outfile):
     """Save the local fit amplitudes and lifetimes to a text file.
