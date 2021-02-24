@@ -393,52 +393,44 @@ def tshift(input_dir, time_shift):
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the data to collapse.")
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that contains the data to collapse.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to put the collapsed data into.")
 @click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse.")
 @click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval.")
-@click.option("--averaged", required=False, is_flag=True, help="Collapse averaged data.")
-@click.option("--osc-free", required=False, is_flag=True, help="Collapse oscillation-free data.")
-def collapse(input_file, times, cpoints, averaged, osc_free):
-    """Collapse the data in the specified file so that later times use fewer points.
-
+def collapse(input_dir, output_dir, times, cpoints):
+    """Collapse the data in the specified directory so that later times use fewer points.
     """
     if len(times) != len(cpoints):
         click.echo("There must be as many cutoff times as there are chunk sizes.")
         return
-    if (averaged and osc_free) or ((not averaged) and (not osc_free)):
-        click.echo("Choose a data source with '--averaged' or '--osc-free'.")
-        return
-    with h5py.File(input_file, "r+") as infile:
-        try:
-            del infile["collapsed"]
-        except KeyError:
-            pass
-        if averaged:
-            try:
-                data = infile["average"]
-            except KeyError:
-                click.echo("File does not contain averaged data.")
-                return
-        if osc_free:
-            try:
-                data = infile["osc_free"]
-            except KeyError:
-                click.echo("File does not contain oscillation-free data.")
-                return
-        ts = core.time_axis()
-        for t in times:
-            if t < ts[0]:
-                click.echo(f"Time {t} occurs before the first point.")
-                return
-            if t > ts[-1]:
-                click.echo(f"Time {t} occurs after the last point.")
-                return
-        num_points, num_wls = data.shape
-        data_with_time = np.empty((num_points, num_wls + 1))
-        data_with_time[:, 0] = ts
-        data_with_time[:, 1:] = data
-        collapsed_data = compute.collapse(data_with_time, times, cpoints)
-        infile.create_dataset("collapsed", data=collapsed_data)
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    files = [f for f in input_dir.iterdir() if f.suffix == ".txt"]
+    filenames = [f.name for f in files]
+    ts = core.time_axis()
+    for t in times:
+        if t < ts[0]:
+            click.echo(f"Time {t} occurs before the first point.")
+            return
+        if t > ts[-1]:
+            click.echo(f"Time {t} occurs after the last point.")
+            return
+    num_points = core.POINTS
+    num_wls = len(files)
+    data_with_time = np.empty((num_points, num_wls + 1))
+    data_with_time[:, 0] = ts
+    for i, f in enumerate(files, start=1):
+        data = np.loadtxt(f, delimiter=",")[:, 1]
+        data_with_time[:, i] = data
+    collapsed_data = compute.collapse(data_with_time, times, cpoints)
+    collapsed_time = collapsed_data[:, 0]
+    output_dir.mkdir(exist_ok=True)
+    for i, f in enumerate(filenames, start=1):
+        data = np.empty((len(collapsed_time), 2))
+        data[:, 0] = collapsed_time
+        data[:, 1] = collapsed_data[:, i]
+        output_file = output_dir / f
+        np.savetxt(output_file, data, delimiter=",")
     return
 
 
