@@ -487,7 +487,8 @@ def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex,
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA data file to read from.")
+@click.option("-i", "--input-file", type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA data file to read from.")
+@click.option("-d", "--input-dir", type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to read from.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txt", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time (in us).")
@@ -495,65 +496,78 @@ def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex,
 @click.option("--averaged", is_flag=True, help="Take the slice from averaged data.")
 @click.option("--osc-free", is_flag=True, help="Take the slice from oscillation-free data.")
 @click.option("--collapsed", is_flag=True, help="Take the slice from collapsed data.")
-def wlslice(input_file, fig, txt, stime, sindex, averaged, osc_free, collapsed):
+def wlslice(input_file, input_dir, fig, txt, stime, sindex, averaged, osc_free, collapsed):
     """Create a dA or dCD slice at all wavelengths for a specified time.
 
     Note: This command is only valid for averaged data.
     """
-    data_options = [averaged, osc_free, collapsed]
-    if data_options.count(True) != 1:
-        click.echo("Choose a data source using '--averaged', '--osc-free', or '--collapsed'.")
-        return
     if (txt is None) and (fig is None):
         click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
         return
-    with h5py.File(input_file, "r") as infile:
-        if averaged:
-            try:
-                data = infile["average"]
-            except KeyError:
-                click.echo("File does not contain averaged data.")
-                return
-        elif osc_free:
-            try:
-                data = infile["osc_free"]
-            except KeyError:
-                click.echo("File does not contain oscillation-free data.")
-                return
-        elif collapsed:
-            try:
-                data = infile["collapsed"]
-            except KeyError:
-                click.echo("File does not contain collapsed data.")
-                return
-        points = data.shape[0]
-        if not slices.valid_shot_slice_point(stime, sindex, points):
+    if input_file:
+        data_options = [averaged, osc_free, collapsed]
+        if data_options.count(True) != 1:
+            click.echo("Choose a data source using '--averaged', '--osc-free', or '--collapsed'.")
             return
-        if sindex is None:
-            if collapsed:
-                ts = data[:, 0]
-            else:
-                ts = core.time_axis()
-            s_idx = slices.index_nearest_to_value(ts, stime)
-            if s_idx is None:
-                click.echo("Slice time is out of range.")
-                return
-        else:
-            s_idx = sindex
+        with h5py.File(input_file, "r") as infile:
+            if averaged:
+                try:
+                    data = infile["average"]
+                except KeyError:
+                    click.echo("File does not contain averaged data.")
+                    return
+            elif osc_free:
+                try:
+                    data = infile["osc_free"]
+                except KeyError:
+                    click.echo("File does not contain oscillation-free data.")
+                    return
+            elif collapsed:
+                try:
+                    data = infile["collapsed"]
+                except KeyError:
+                    click.echo("File does not contain collapsed data.")
+                    return
+            wavelengths = [x/100 for x in infile["wavelengths"]]
+            points = data.shape[0]
+    elif input_dir:
+        input_dir = Path(input_dir)
+        files = [f for f in input_dir.iterdir() if f.suffix == ".txt"]
+        first_file = np.loadtxt(files[0], delimiter=",")
+        points = first_file.shape[0]
+        wavelengths = [int(f.stem) for f in files]
+        data = np.empty((points, len(files)))
+        for i, f in enumerate(files):
+            data[:, i] = np.loadtxt(f, delimiter=",")[:, 1]
+    else:
+        click.echo("Choose an input source with --input-file or --input-dir", err=True)
+        return
+    if not slices.valid_shot_slice_point(stime, sindex, points):
+        return
+    if sindex is None:
         if collapsed:
-            slice_data = data[s_idx, 1:]
+            ts = data[:, 0]
         else:
-            slice_data = data[s_idx, :]
-        wavelengths = [x/100 for x in infile["wavelengths"]]
-        if txt:
-            txtdata = np.empty((len(wavelengths), 2))
-            txtdata[:, 0] = wavelengths
-            txtdata[:, 1] = slice_data
-            core.save_txt(txtdata, Path(txt))
-        if fig:
-            t = ts[s_idx]
-            core.save_fig(wavelengths, slice_data * 1_000, fig, xlabel="Wavelength",
-                          ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
+            ts = core.time_axis()
+        s_idx = slices.index_nearest_to_value(ts, stime)
+        if s_idx is None:
+            click.echo("Slice time is out of range.")
+            return
+    else:
+        s_idx = sindex
+    if collapsed:
+        slice_data = data[s_idx, 1:]
+    else:
+        slice_data = data[s_idx, :]
+    if txt:
+        txtdata = np.empty((len(wavelengths), 2))
+        txtdata[:, 0] = wavelengths
+        txtdata[:, 1] = slice_data
+        core.save_txt(txtdata, Path(txt))
+    if fig:
+        t = ts[s_idx]
+        core.save_fig(wavelengths, slice_data * 1_000, fig, xlabel="Wavelength",
+                      ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
         return
 
 
