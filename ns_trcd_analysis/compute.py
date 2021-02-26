@@ -86,7 +86,7 @@ def compute_cd_always_pumped(infile, outfile, delta):
     tmp_raw = np.empty((points, 3, shots, wavelengths, 1))
     tmp_cd = np.empty((points, shots, wavelengths))
     ds_in.read_direct(tmp_raw)
-    coeff = 4 / (2.3 * delta)
+    coeff = (4 * delta) / 2.3
     with click.progressbar(range(shots), label="Computing CD") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
@@ -108,7 +108,7 @@ def compute_cd_with_and_without_pump(infile, outfile, delta):
     tmp_raw = np.empty((points, 3, shots, wavelengths, 2))
     tmp_cd = np.empty((points, shots, wavelengths))
     ds_in.read_direct(tmp_raw)
-    coeff = 4 / (2.3 * delta)
+    coeff = (4 * delta) / 2.3
     with click.progressbar(range(shots), label="Computing CD") as shots:
         for shot_idx in shots:
             for wl_idx in range(wavelengths):
@@ -127,7 +127,7 @@ def average(f):
     da_ds = f["data"]
     points, shots, wls = da_ds.shape
     avg_ds = f.create_dataset("average", (points, wls))
-    avg_ds.write_direct(np.mean(da_ds, axis=1))
+    avg_ds.write_direct(np.nanmean(da_ds, axis=1))
     return
 
 
@@ -248,7 +248,7 @@ def collapse(data, times, cpoints):
         start = cutoff_indices[i]
         stop = cutoff_indices[i+1]
         num_splits = np.ceil((stop - start)/cpoints[i])
-        splits = np.asarray(np.array_split(data[start:stop, :], num_splits))
+        splits = np.array_split(data[start:stop, :], num_splits)
         for s in splits:
             tmp[output_idx, :] = s.mean(axis=0)
             output_idx += 1

@@ -24,7 +24,8 @@ def cli():
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the raw experiment data files.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the assembled experiment data.")
-def assemble(input_dir, output_file):
+@click.option("-d", "--dark-signals", "dark_signals_file", default=None, type=click.Path(file_okay=True, dir_okay=False, exists=True), help="The file that contains the dark signals for each shot.")
+def assemble(input_dir, output_file, dark_signals_file):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -41,8 +42,10 @@ def assemble(input_dir, output_file):
     For the moment <pump states> is 1 and thus doesn't need to be there, but is included for backwards compatibility.
     """
     in_dir = Path(input_dir)
-    outfile = in_dir / output_file
-    raw2hdf5.ingest(in_dir, outfile)
+    outfile = Path(output_file)
+    if dark_signals_file is not None:
+        dark_signals_file = Path(dark_signals_file)
+    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=dark_signals_file)
 
 
 @click.command()
@@ -144,7 +147,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data if it exists.")
 @click.option("--collapsed", is_flag=True, help="Extract only collapsed data if it exists.")
 def export(input_file, fig, txt, format, channel, wavelength, without_pump, averaged, osc_free, collapsed):
-    """Generate images of each shot in a data file.
+    """Export data as CSVs or images.
 
     This works for both dA and raw data files (specified with the '-d' flag).
     """
@@ -390,52 +393,44 @@ def tshift(input_dir, time_shift):
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the data to collapse.")
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that contains the data to collapse.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to put the collapsed data into.")
 @click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse.")
 @click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval.")
-@click.option("--averaged", required=False, is_flag=True, help="Collapse averaged data.")
-@click.option("--osc-free", required=False, is_flag=True, help="Collapse oscillation-free data.")
-def collapse(input_file, times, cpoints, averaged, osc_free):
-    """Collapse the data in the specified file so that later times use fewer points.
-
+def collapse(input_dir, output_dir, times, cpoints):
+    """Collapse the data in the specified directory so that later times use fewer points.
     """
     if len(times) != len(cpoints):
         click.echo("There must be as many cutoff times as there are chunk sizes.")
         return
-    if (averaged and osc_free) or ((not averaged) and (not osc_free)):
-        click.echo("Choose a data source with '--averaged' or '--osc-free'.")
-        return
-    with h5py.File(input_file, "r+") as infile:
-        try:
-            del infile["collapsed"]
-        except KeyError:
-            pass
-        if averaged:
-            try:
-                data = infile["average"]
-            except KeyError:
-                click.echo("File does not contain averaged data.")
-                return
-        if osc_free:
-            try:
-                data = infile["osc_free"]
-            except KeyError:
-                click.echo("File does not contain oscillation-free data.")
-                return
-        ts = core.time_axis()
-        for t in times:
-            if t < ts[0]:
-                click.echo(f"Time {t} occurs before the first point.")
-                return
-            if t > ts[-1]:
-                click.echo(f"Time {t} occurs after the last point.")
-                return
-        num_points, num_wls = data.shape
-        data_with_time = np.empty((num_points, num_wls + 1))
-        data_with_time[:, 0] = ts
-        data_with_time[:, 1:] = data
-        collapsed_data = compute.collapse(data_with_time, times, cpoints)
-        infile.create_dataset("collapsed", data=collapsed_data)
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    files = [f for f in input_dir.iterdir() if f.suffix == ".txt"]
+    filenames = [f.name for f in files]
+    ts = core.time_axis()
+    for t in times:
+        if t < ts[0]:
+            click.echo(f"Time {t} occurs before the first point.")
+            return
+        if t > ts[-1]:
+            click.echo(f"Time {t} occurs after the last point.")
+            return
+    num_points = core.POINTS
+    num_wls = len(files)
+    data_with_time = np.empty((num_points, num_wls + 1))
+    data_with_time[:, 0] = ts
+    for i, f in enumerate(files, start=1):
+        data = np.loadtxt(f, delimiter=",")[:, 1]
+        data_with_time[:, i] = data
+    collapsed_data = compute.collapse(data_with_time, times, cpoints)
+    collapsed_time = collapsed_data[:, 0]
+    output_dir.mkdir(exist_ok=True)
+    for i, f in enumerate(filenames, start=1):
+        data = np.empty((len(collapsed_time), 2))
+        data[:, 0] = collapsed_time
+        data[:, 1] = collapsed_data[:, i]
+        output_file = output_dir / f
+        np.savetxt(output_file, data, delimiter=",")
     return
 
 
@@ -492,7 +487,8 @@ def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex,
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA data file to read from.")
+@click.option("-i", "--input-file", type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA data file to read from.")
+@click.option("-d", "--input-dir", type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to read from.")
 @click.option("-f", "--figure-path", "fig", type=click.Path(file_okay=True, dir_okay=False), help="Generate a figure at the specified path.")
 @click.option("-t", "--txt-path", "txt", type=click.Path(file_okay=True, dir_okay=False), help="Save a CSV file at the specified path.")
 @click.option("--slice-time", "stime", type=click.FLOAT, help="Select the slice closest to the specified time (in us).")
@@ -500,64 +496,78 @@ def shotslice(input_file, data_format, channel, figpath, txtpath, stime, sindex,
 @click.option("--averaged", is_flag=True, help="Take the slice from averaged data.")
 @click.option("--osc-free", is_flag=True, help="Take the slice from oscillation-free data.")
 @click.option("--collapsed", is_flag=True, help="Take the slice from collapsed data.")
-def wlslice(input_file, fig, txt, stime, sindex, averaged, osc_free, collapsed):
+def wlslice(input_file, input_dir, fig, txt, stime, sindex, averaged, osc_free, collapsed):
     """Create a dA or dCD slice at all wavelengths for a specified time.
 
     Note: This command is only valid for averaged data.
     """
-    data_options = [averaged, osc_free, collapsed]
-    if data_options.count(True) != 1:
-        click.echo("Choose a data source using '--averaged', '--osc-free', or '--collapsed'.")
-        return
     if (txt is None) and (fig is None):
         click.echo("No output has been chosen. See '-f' or '-t'.", err=True)
         return
-    with h5py.File(input_file, "r") as infile:
-        if averaged:
-            try:
-                data = infile["average"]
-            except KeyError:
-                click.echo("File does not contain averaged data.")
-                return
-        elif osc_free:
-            try:
-                data = infile["osc_free"]
-            except KeyError:
-                click.echo("File does not contain oscillation-free data.")
-                return
-        elif collapsed:
-            try:
-                data = infile["collapsed"]
-            except KeyError:
-                click.echo("File does not contain collapsed data.")
-                return
-        points = data.shape[0]
-        if not slices.valid_shot_slice_point(stime, sindex, points):
+    if input_file:
+        data_options = [averaged, osc_free, collapsed]
+        if data_options.count(True) != 1:
+            click.echo("Choose a data source using '--averaged', '--osc-free', or '--collapsed'.")
             return
-        if sindex is None:
-            if collapsed:
-                ts = data[:, 0]
-            else:
-                ts = core.time_axis()
-            s_idx = slices.index_nearest_to_value(ts, stime)
-            if s_idx is None:
-                click.echo("Slice time is out of range.")
-                return
-        else:
-            s_idx = sindex
+        with h5py.File(input_file, "r") as infile:
+            if averaged:
+                try:
+                    data = infile["average"]
+                except KeyError:
+                    click.echo("File does not contain averaged data.")
+                    return
+            elif osc_free:
+                try:
+                    data = infile["osc_free"]
+                except KeyError:
+                    click.echo("File does not contain oscillation-free data.")
+                    return
+            elif collapsed:
+                try:
+                    data = infile["collapsed"]
+                except KeyError:
+                    click.echo("File does not contain collapsed data.")
+                    return
+            wavelengths = [x/100 for x in infile["wavelengths"]]
+            points = data.shape[0]
+    elif input_dir:
+        input_dir = Path(input_dir)
+        files = [f for f in input_dir.iterdir() if f.suffix == ".txt"]
+        first_file = np.loadtxt(files[0], delimiter=",")
+        points = first_file.shape[0]
+        wavelengths = [int(f.stem) for f in files]
+        data = np.empty((points, len(files)))
+        for i, f in enumerate(files):
+            data[:, i] = np.loadtxt(f, delimiter=",")[:, 1]
+    else:
+        click.echo("Choose an input source with --input-file or --input-dir", err=True)
+        return
+    if not slices.valid_shot_slice_point(stime, sindex, points):
+        return
+    if sindex is None:
         if collapsed:
-            slice_data = data[s_idx, 1:]
+            ts = data[:, 0]
         else:
-            slice_data = data[s_idx, :]
-        wavelengths = [x/100 for x in infile["wavelengths"]]
-        if txt:
-            txtdata = np.empty((len(wavelengths), 2))
-            txtdata[:, 0] = wavelengths
-            txtdata[:, 1] = slice_data
-            core.save_txt(txtdata, Path(txt))
-        if fig:
-            t = ts[s_idx]
-            core.save_fig(wavelengths, slice_data * 1_000, fig, xlabel="Wavelength", ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
+            ts = core.time_axis()
+        s_idx = slices.index_nearest_to_value(ts, stime)
+        if s_idx is None:
+            click.echo("Slice time is out of range.")
+            return
+    else:
+        s_idx = sindex
+    if collapsed:
+        slice_data = data[s_idx, 1:]
+    else:
+        slice_data = data[s_idx, :]
+    if txt:
+        txtdata = np.empty((len(wavelengths), 2))
+        txtdata[:, 0] = wavelengths
+        txtdata[:, 1] = slice_data
+        core.save_txt(txtdata, Path(txt))
+    if fig:
+        t = ts[s_idx]
+        core.save_fig(wavelengths, slice_data * 1_000, fig, xlabel="Wavelength",
+                      ylabel="dA (mOD)", title=f"Slice at t={t:.2f}us")
         return
 
 
@@ -603,7 +613,8 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
             core.save_txt(txtdata, txtpath)
         if figpath:
             t = core.time_axis()[s_idx]
-            core.save_fig(shots, s, figpath, xlabel="Shot number", ylabel="Abs.", title=f"Slice at {wavelength}nm, t={t:.2f}us")
+            core.save_fig(shots, s, figpath, xlabel="Shot number", ylabel="Abs.",
+                          title=f"Slice at {wavelength}nm, t={t:.2f}us")
         return
 
 
