@@ -393,7 +393,7 @@ def importscript(input_dir, output_file):
 
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files to shift.")
-@click.option("-t", "--time-shift", required=True, type=click.FLOAT, help="The time in seconds to add to every point on the time axis.")
+@click.option("-t", "--time-shift", required=True, type=click.FLOAT, help="The time in microseconds to add to every point on the time axis.")
 def tshift(input_dir, time_shift):
     """Shift the time axis of data files in the specified directory.
     """
