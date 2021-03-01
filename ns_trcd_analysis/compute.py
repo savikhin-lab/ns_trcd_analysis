@@ -347,7 +347,7 @@ def global_fit(data, ts, fit_after, lfits, bounded_lifetimes):
     # Flatten the arrays into a single column since the curve_fit function
     # requires that the x- and y-array be 1D.
     xs = np.repeat(ts_for_fit, n_wls)
-    ys = data_for_fit.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
+    ys = data_for_fit.reshape(data_for_fit.shape[0] * data_for_fit.shape[1], order="F")
 
     def fit_me(x, *args):
         fitted = np.empty_like(data_for_fit)
