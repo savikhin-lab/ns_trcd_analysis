@@ -3,6 +3,7 @@ import click
 import numpy as np
 import matplotlib.pyplot as plt
 from enum import Enum
+from pathlib import Path
 from typing import Union, List, Tuple
 
 
@@ -131,3 +132,14 @@ def compute_splits(points, size) -> List[Tuple[int, int]]:
             splits.append((cursor, cursor+points_left))
         break
     return splits
+
+
+def load_dir_into_arr(d: Path) -> (np.ndarray, np.ndarray):
+    """Load the text files in the given directory into an array.
+    """
+    files = sorted([f for f in d.iterdir() if f.suffix == ".txt"])
+    first = np.loadtxt(files[0], delimiter=",")
+    arr = np.empty((first.shape[0], len(files)))
+    for i, f in enumerate(files):
+        arr[:, i] = np.loadtxt(f, delimiter=",")[:, 1]
+    return arr, first[:, 0]

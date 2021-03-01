@@ -10,7 +10,7 @@ from . import images
 from . import noise
 from . import raw2hdf5
 from . import slices
-from .core import Channels, valid_channel
+from .core import Channels, valid_channel, load_dir_into_arr
 
 
 POINTS = 20_000
@@ -666,6 +666,32 @@ def noise_avg(input_file, output_file, sigmas):
     return
 
 
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to fit.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the fit results in. The first column contains the lifetimes.")
+@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=click.FLOAT, help="The lifetimes to try fitting to the data.")
+@click.option("-b", "--bound", "bounds", multiple=True, required=True, type=(click.FLOAT, click.FLOAT), help="Bounds for the corresponding lifetime. Bounds are entered in pairs with the lower bound first.")
+@click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
+def fit(input_dir, output_file, lifetimes, bounds, fit_after):
+    """Do a global fit with the provided lifetimes.
+    """
+    if len(lifetimes) != len(bounds):
+        click.echo("You must provide the same number of bounds and lifetimes.", err=True)
+        return
+    input_dir = Path(input_dir)
+    output_file = Path(output_file)
+    lifetimes = list(lifetimes)
+    bounds = list(bounds)
+    data, ts = load_dir_into_arr(input_dir)
+    lfit_params = compute.lfits_for_gfit(data, ts, fit_after, lifetimes, bounds)
+    gfit_amps, gfit_lifetimes = compute.global_fit(data, ts, fit_after, lfit_params, lifetimes, bounds)
+    out_data = np.empty((len(lifetimes), data.shape[1]+1))
+    out_data[:, 0] = np.asarray(gfit_lifetimes)
+    out_data[:, 1:] = gfit_amps
+    np.save(output_file, out_data)
+    return
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -673,7 +699,6 @@ cli.add_command(export)
 cli.add_command(shotslice)
 cli.add_command(wlslice)
 cli.add_command(absslice)
-cli.add_command(lfit)
 cli.add_command(split)
 cli.add_command(average)
 cli.add_command(rmosc)
@@ -684,3 +709,4 @@ cli.add_command(tshift)
 cli.add_command(collapse)
 cli.add_command(noiserep)
 cli.add_command(noise_avg)
+cli.add_command(fit)
