@@ -669,22 +669,17 @@ def noise_avg(input_file, output_file, sigmas):
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to fit.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the fit results in. The first column contains the lifetimes.")
-@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=click.FLOAT, help="The lifetimes to try fitting to the data.")
-@click.option("-b", "--bound", "bounds", multiple=True, required=True, type=(click.FLOAT, click.FLOAT), help="Bounds for the corresponding lifetime. Bounds are entered in pairs with the lower bound first.")
+@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
 @click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
-def fit(input_dir, output_file, lifetimes, bounds, fit_after):
+def fit(input_dir, output_file, lifetimes, fit_after):
     """Do a global fit with the provided lifetimes.
     """
-    if len(lifetimes) != len(bounds):
-        click.echo("You must provide the same number of bounds and lifetimes.", err=True)
-        return
     input_dir = Path(input_dir)
     output_file = Path(output_file)
-    lifetimes = list(lifetimes)
-    bounds = list(bounds)
+    bounded_lifetimes = compute.bounded_lifetimes_from_args(lifetimes)
     data, ts = load_dir_into_arr(input_dir)
-    lfit_params = compute.lfits_for_gfit(data, ts, fit_after, lifetimes, bounds)
-    gfit_amps, gfit_lifetimes = compute.global_fit(data, ts, fit_after, lfit_params, lifetimes, bounds)
+    lfit_params = compute.lfits_for_gfit(data, ts, fit_after, bounded_lifetimes)
+    gfit_amps, gfit_lifetimes = compute.global_fit(data, ts, fit_after, lfit_params, bounded_lifetimes)
     out_data = np.empty((len(lifetimes), data.shape[1]+1))
     out_data[:, 0] = np.asarray(gfit_lifetimes)
     out_data[:, 1:] = gfit_amps
