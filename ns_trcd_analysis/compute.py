@@ -9,7 +9,7 @@ import numpy as np
 from dataclasses import dataclass
 from itertools import product
 from typing import Dict, List, Tuple
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, least_squares
 from . import core
 
 
@@ -368,3 +368,46 @@ def global_fit(data, ts, fit_after, lfits, bounded_lifetimes):
         exp_args = list(fit_amps[:, i]) + fit_lifetimes
         fits[ts > fit_after, i] = multi_exp(ts_for_fit, *exp_args)
     return fit_amps, fit_lifetimes
+
+
+def gfit_least_squares(data, ts, fit_after, lfits, bounded_lifetimes):
+    """Do a global fit of the data using local fits as the starting point.
+    """
+    n_lifetimes = len(bounded_lifetimes)
+    n_wls = data.shape[1]
+    gfit_bounds = make_gfit_bounds(lfits, bounded_lifetimes)
+    gfit_guesses = make_gfit_guesses(lfits, bounded_lifetimes)
+    data_for_fit = data[ts > fit_after, :]
+    ts_for_fit = ts[ts > fit_after]
+    # Flatten the arrays into a single column since the curve_fit function
+    # requires that the x- and y-array be 1D.
+    xs = np.repeat(ts_for_fit, n_wls)
+    ys = data_for_fit.reshape(data_for_fit.shape[0] * data_for_fit.shape[1], order="F")
+
+    def compute_residuals(params, *args):
+        fitted = np.empty_like(data_for_fit)
+        amp_arr = gfit_amp_arr_from_args(params, n_lifetimes, n_wls)
+        gfit_lifetimes = list(params[-n_lifetimes:])
+        for i in range(n_wls):
+            amps = list(amp_arr[:, i])
+            exp_args = amps + gfit_lifetimes
+            fitted[:, i] = multi_exp(ts_for_fit, *exp_args)
+        diff = data_for_fit - fitted
+        return diff.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
+    
+    res = least_squares(compute_residuals, x0=gfit_guesses, bounds=gfit_bounds, gtol=1e-10)
+    fit_amps = gfit_amp_arr_from_args(list(res.x), n_lifetimes, n_wls)
+    fit_lifetimes = list(res.x[-n_lifetimes:])
+    return fit_amps, fit_lifetimes
+
+
+def curves_from_fit(amps, lifetimes, ts, fit_after):
+    """Generate curves from fit parameters.
+    """
+    n_lifetimes = amps.shape[0]
+    n_wls = amps.shape[1]
+    fits = np.zeros((len(ts), n_wls))
+    for i in range(n_wls):
+        exp_args = list(amps[:, i]) + lifetimes
+        fits[ts > fit_after, i] = multi_exp(ts[ts > fit_after], *exp_args)
+    return fits
