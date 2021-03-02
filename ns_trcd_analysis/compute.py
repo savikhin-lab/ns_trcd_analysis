@@ -248,26 +248,14 @@ def multi_exp(x, *args) -> np.ndarray:
     return out
 
 
-def make_lfit_param_list(amps, ls):
-    """Interleave the lifetimes and parameters to pass them to the multi_exp function.
-    """
-    return tuple(amps + ls)
-
-
 def lfits_for_gfit(data, ts, fit_after_time, bounded_lifetimes):
     """Do local fits for each curve to provide a starting point for the global fit.
     """
     n_wls = data.shape[1]
     n_lifetimes = len(bounded_lifetimes)
     lfit_params = np.empty((n_lifetimes, n_wls))
-    lower = []
-    upper = []
-    guesses = []
-    # Bounds for the amplitude
-    for i in range(n_lifetimes):
-        lower.append(-0.02)
-        upper.append(0.02)
-    # Bounds for the lifetime
+    lower = [-0.02 for _ in range(n_lifetimes)]
+    upper = [0.02 for _ in range(n_lifetimes)]
     lower += [b.lower for b in bounded_lifetimes]
     upper += [b.upper for b in bounded_lifetimes]
     amp_guesses = [-0.001 for x in range(n_lifetimes)]
@@ -279,33 +267,6 @@ def lfits_for_gfit(data, ts, fit_after_time, bounded_lifetimes):
         amplitudes = res[:n_lifetimes]
         lfit_params[:, i] = np.asarray(amplitudes)
     return lfit_params
-
-
-def make_gfit_bounds(lfits, bounded_lifetimes):
-    """Make the bounds lists for the global fit.
-
-    There are two lists: the upper bounds and lower bounds. If there are N lifetimes
-    and M wavelengths, each bounds list will have this format:
-        a11, a12, ..., a1N, ..., aMN, t1, t2, ..., tN
-    """
-    n_wls = lfits.shape[1]
-    n_lifetimes = len(bounded_lifetimes)
-    amp_lower = []
-    amp_upper = []
-    for wl in range(n_wls):
-        for lt in range(n_lifetimes):
-            a = lfits[lt, wl]
-            if a > 0:
-                amp_lower.append(0.5 * a)
-                amp_upper.append(1.5 * a)
-            else:
-                amp_lower.append(1.5 * a)
-                amp_upper.append(0.5 * a)
-    lifetimes_lower = [b.lower for b in bounded_lifetimes]
-    lifetimes_upper = [b.upper for b in bounded_lifetimes]
-    lower = amp_lower + lifetimes_lower
-    upper = amp_upper + lifetimes_upper
-    return (lower, upper)
 
 
 def make_gfit_guesses(lfits, bounded_lifetimes):
@@ -322,7 +283,7 @@ def make_gfit_guesses(lfits, bounded_lifetimes):
     return guesses
 
 
-def gfit_amp_arr_from_args(params, n_lifetimes, n_wls):
+def amp_arr_from_list(params, n_lifetimes, n_wls):
     """Reshape the parameter list into an array for easy indexing.
     """
     p_arr = np.empty((n_lifetimes, n_wls))
@@ -338,51 +299,13 @@ def global_fit(data, ts, fit_after, lfits, bounded_lifetimes):
     """
     n_lifetimes = len(bounded_lifetimes)
     n_wls = data.shape[1]
-    gfit_bounds = make_gfit_bounds(lfits, bounded_lifetimes)
     gfit_guesses = make_gfit_guesses(lfits, bounded_lifetimes)
     data_for_fit = data[ts > fit_after, :]
     ts_for_fit = ts[ts > fit_after]
-    # Flatten the arrays into a single column since the curve_fit function
-    # requires that the x- and y-array be 1D.
-    xs = np.repeat(ts_for_fit, n_wls)
-    ys = data_for_fit.reshape(data_for_fit.shape[0] * data_for_fit.shape[1], order="F")
-
-    def fit_me(x, *args):
-        fitted = np.empty_like(data_for_fit)
-        amp_arr = gfit_amp_arr_from_args(args, n_lifetimes, n_wls)
-        gfit_lifetimes = list(args[-n_lifetimes:])
-        for i in range(n_wls):
-            amps = list(amp_arr[:, i])
-            exp_args = amps + gfit_lifetimes
-            fitted[:, i] = multi_exp(ts_for_fit, *exp_args)
-        return fitted.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
-
-    res, _ = optimize.curve_fit(fit_me, xs, ys, p0=gfit_guesses, bounds=gfit_bounds)
-    fit_amps = gfit_amp_arr_from_args(list(res), n_lifetimes, n_wls)
-    fit_lifetimes = list(res[-n_lifetimes:])
-    fits = np.empty_like(data)
-    fits[ts <= fit_after, :] = 0
-    for i in range(n_wls):
-        exp_args = list(fit_amps[:, i]) + fit_lifetimes
-        fits[ts > fit_after, i] = multi_exp(ts_for_fit, *exp_args)
-    return fit_amps, fit_lifetimes
-
-
-def gfit_least_squares(data, ts, fit_after, lfits, bounded_lifetimes):
-    """Do a global fit of the data using local fits as the starting point.
-    """
-    n_lifetimes = len(bounded_lifetimes)
-    n_wls = data.shape[1]
-    gfit_bounds = make_gfit_bounds(lfits, bounded_lifetimes)
-    gfit_guesses = make_gfit_guesses(lfits, bounded_lifetimes)
-    data_for_fit = data[ts > fit_after, :]
-    ts_for_fit = ts[ts > fit_after]
-    # Flatten the arrays into a single column since the curve_fit function
-    # requires that the x- and y-array be 1D.
 
     def compute_residuals(params, *args):
         fitted = np.empty_like(data_for_fit)
-        amp_arr = gfit_amp_arr_from_args(params, n_lifetimes, n_wls)
+        amp_arr = amp_arr_from_list(params, n_lifetimes, n_wls)
         gfit_lifetimes = list(params[-n_lifetimes:])
         for i in range(n_wls):
             amps = list(amp_arr[:, i])
@@ -391,9 +314,8 @@ def gfit_least_squares(data, ts, fit_after, lfits, bounded_lifetimes):
         diff = data_for_fit - fitted
         return diff.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
 
-    res = optimize.least_squares(compute_residuals, x0=gfit_guesses, bounds=gfit_bounds)
-    click.echo(res.message)
-    fit_amps = gfit_amp_arr_from_args(list(res.x), n_lifetimes, n_wls)
+    res = optimize.least_squares(compute_residuals, x0=gfit_guesses, method="lm", verbose=2)
+    fit_amps = amp_arr_from_list(list(res.x), n_lifetimes, n_wls)
     fit_lifetimes = list(res.x[-n_lifetimes:])
     return fit_amps, fit_lifetimes
 
