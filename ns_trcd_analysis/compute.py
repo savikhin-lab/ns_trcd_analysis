@@ -8,9 +8,8 @@ import click
 import numpy as np
 from dataclasses import dataclass
 from itertools import product
-from typing import Dict, List, Tuple
+from typing import List
 from scipy import optimize
-from . import core
 
 
 POINTS_BEFORE_PUMP = 1_500
@@ -173,7 +172,6 @@ def remove_da_shot_offsets(dataset, offset_points):
     """Remove the before-pump offset from each shot.
     """
     points, shots, wls = dataset.shape
-    total_shots = shots * wls
     all_indices = [x for x in product(range(shots), range(wls))]
     original = np.empty((points, shots, wls))
     tmp = np.empty_like(original)
@@ -220,12 +218,12 @@ def collapse(data, times, cpoints):
             else:
                 cutoff_indices.append(orig_t_idx)
                 break
-    cutoff_indices.append(data.shape[0]+1)
+    cutoff_indices.append(data.shape[0] + 1)
     output_idx = cutoff_indices[0]
-    for i in range(len(cutoff_indices)-1):
+    for i in range(len(cutoff_indices) - 1):
         start = cutoff_indices[i]
-        stop = cutoff_indices[i+1]
-        num_splits = np.ceil((stop - start)/cpoints[i])
+        stop = cutoff_indices[i + 1]
+        num_splits = np.ceil((stop - start) / cpoints[i])
         splits = np.array_split(data[start:stop, :], num_splits)
         for s in splits:
             tmp[output_idx, :] = s.mean(axis=0)
@@ -242,8 +240,8 @@ def multi_exp(x, *args) -> np.ndarray:
     """
     out = np.zeros_like(x)
     arg_list = list(args)
-    amplitudes = arg_list[:(len(arg_list)//2)]
-    lifetimes = arg_list[(len(arg_list)//2):]
+    amplitudes = arg_list[:(len(arg_list) // 2)]
+    lifetimes = arg_list[(len(arg_list) // 2):]
     for a, tau in zip(amplitudes, lifetimes):
         this_exp = a * np.exp(-x / tau)
         np.add(out, this_exp, out=out)
@@ -312,7 +310,7 @@ def make_gfit_bounds(lfits, bounded_lifetimes):
 
 def make_gfit_guesses(lfits, bounded_lifetimes):
     """Make the initial guesses for the global fit.
-    
+
     If there are N lifetimes and M wavelengths, this list has the format:
         a11, a12, ..., a1N, ..., aMN, t1, t2, ..., tN
     """
@@ -358,7 +356,7 @@ def global_fit(data, ts, fit_after, lfits, bounded_lifetimes):
             exp_args = amps + gfit_lifetimes
             fitted[:, i] = multi_exp(ts_for_fit, *exp_args)
         return fitted.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
-    
+
     res, _ = optimize.curve_fit(fit_me, xs, ys, p0=gfit_guesses, bounds=gfit_bounds)
     fit_amps = gfit_amp_arr_from_args(list(res), n_lifetimes, n_wls)
     fit_lifetimes = list(res[-n_lifetimes:])
@@ -381,8 +379,6 @@ def gfit_least_squares(data, ts, fit_after, lfits, bounded_lifetimes):
     ts_for_fit = ts[ts > fit_after]
     # Flatten the arrays into a single column since the curve_fit function
     # requires that the x- and y-array be 1D.
-    xs = np.repeat(ts_for_fit, n_wls)
-    ys = data_for_fit.reshape(data_for_fit.shape[0] * data_for_fit.shape[1], order="F")
 
     def compute_residuals(params, *args):
         fitted = np.empty_like(data_for_fit)
@@ -405,7 +401,6 @@ def gfit_least_squares(data, ts, fit_after, lfits, bounded_lifetimes):
 def curves_from_fit(amps, lifetimes, ts, fit_after):
     """Generate curves from fit parameters.
     """
-    n_lifetimes = amps.shape[0]
     n_wls = amps.shape[1]
     fits = np.zeros((len(ts), n_wls))
     for i in range(n_wls):
