@@ -9,7 +9,7 @@ import numpy as np
 from dataclasses import dataclass
 from itertools import product
 from typing import Dict, List, Tuple
-from scipy.optimize import curve_fit, least_squares
+from scipy import optimize
 from . import core
 
 
@@ -156,7 +156,7 @@ def subtract_background(f) -> None:
     with click.progressbar(meas_indices, label="Subtracting background") as indices:
         for shot_idx, wl_idx in indices:
             da_before_pump = tmp_da[:POINTS_BEFORE_PUMP, shot_idx, wl_idx]
-            (slope, intercept), _ = curve_fit(line, t_before_pump, da_before_pump)
+            (slope, intercept), _ = optimize.curve_fit(line, t_before_pump, da_before_pump)
             background = line(x, slope, intercept)
             tmp_da[:, shot_idx, wl_idx] -= background
     da_ds.write_direct(tmp_da)
@@ -277,7 +277,7 @@ def lfits_for_gfit(data, ts, fit_after_time, bounded_lifetimes):
     fit_bounds = (lower, upper)
     for i in range(n_wls):
         ys = data[:, i]
-        res, _ = curve_fit(multi_exp, ts[ts > fit_after_time], ys[ts > fit_after_time], p0=guesses, bounds=fit_bounds)
+        res, _ = optimize.curve_fit(multi_exp, ts[ts > fit_after_time], ys[ts > fit_after_time], p0=guesses, bounds=fit_bounds)
         amplitudes = res[:n_lifetimes]
         lfit_params[:, i] = np.asarray(amplitudes)
     return lfit_params
@@ -359,7 +359,7 @@ def global_fit(data, ts, fit_after, lfits, bounded_lifetimes):
             fitted[:, i] = multi_exp(ts_for_fit, *exp_args)
         return fitted.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
     
-    res, _ = curve_fit(fit_me, xs, ys, p0=gfit_guesses, bounds=gfit_bounds)
+    res, _ = optimize.curve_fit(fit_me, xs, ys, p0=gfit_guesses, bounds=gfit_bounds)
     fit_amps = gfit_amp_arr_from_args(list(res), n_lifetimes, n_wls)
     fit_lifetimes = list(res[-n_lifetimes:])
     fits = np.empty_like(data)
@@ -394,8 +394,9 @@ def gfit_least_squares(data, ts, fit_after, lfits, bounded_lifetimes):
             fitted[:, i] = multi_exp(ts_for_fit, *exp_args)
         diff = data_for_fit - fitted
         return diff.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
-    
-    res = least_squares(compute_residuals, x0=gfit_guesses, bounds=gfit_bounds, gtol=1e-10)
+
+    res = optimize.least_squares(compute_residuals, x0=gfit_guesses, bounds=gfit_bounds)
+    click.echo(res.message)
     fit_amps = gfit_amp_arr_from_args(list(res.x), n_lifetimes, n_wls)
     fit_lifetimes = list(res.x[-n_lifetimes:])
     return fit_amps, fit_lifetimes
