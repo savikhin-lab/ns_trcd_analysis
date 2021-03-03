@@ -673,6 +673,38 @@ def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifeti
     return
 
 
+@click.command()
+@click.option("-d", "--da-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dA files to fit.")
+@click.option("-c", "--cd-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD files to fit.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the fit results.")
+@click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after this time (useful to avoid fitting scattered pump light).")
+@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
+@click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
+@click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
+def double_fit(da_dir, cd_dir, output_dir, fit_after, lifetimes, save_gfit_curves, save_lfit_curves):
+    """Do a global fit of the dA and dCD data at the same time so that they share lifetimes.
+    """
+    da_dir = Path(da_dir)
+    cd_dir = Path(cd_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True)
+    bounded_lifetimes = compute.bounded_lifetimes_from_args(lifetimes)
+    da_data, ts = load_dir_into_arr(da_dir)
+    da_wls = [int(f.stem) for f in sorted(da_dir.iterdir()) if f.suffix == ".txt"]
+    cd_data, _ = load_dir_into_arr(cd_dir)
+    cd_wls = [int(f.stem) for f in sorted(cd_dir.iterdir()) if f.suffix == ".txt"]
+    combined_data = np.hstack((da_data, cd_data))
+    lfit_amps = compute.lfits_for_gfit(combined_data, ts, fit_after, bounded_lifetimes)
+    if save_lfit_curves:
+        lfit_curves = compute.curves_from_fit(lfit_amps, [b.lifetime for b in bounded_lifetimes], ts, fit_after)
+        compute.save_double_lfits(output_dir, lfit_curves, ts, da_wls, cd_wls)
+    gfit_amps, gfit_lifetimes = compute.global_fit(combined_data, ts, fit_after, lfit_amps, bounded_lifetimes)
+    if save_gfit_curves:
+        gfit_curves = compute.curves_from_fit(gfit_amps, gfit_lifetimes, ts, fit_after)
+        compute.save_double_gfits(output_dir, gfit_curves, ts, da_wls, cd_wls)
+    compute.save_double_fit_spectra(output_dir, gfit_amps, gfit_lifetimes, da_wls, cd_wls)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -691,3 +723,4 @@ cli.add_command(collapse)
 cli.add_command(noiserep)
 cli.add_command(noise_avg)
 cli.add_command(global_fit)
+cli.add_command(double_fit)
