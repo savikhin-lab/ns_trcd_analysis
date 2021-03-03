@@ -1,4 +1,3 @@
-import click
 import h5py
 import numpy as np
 from .core import POINTS
