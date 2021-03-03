@@ -528,7 +528,7 @@ def wlslice(input_file, input_dir, fig, txt, stime, sindex, averaged, osc_free, 
                 except KeyError:
                     click.echo("File does not contain collapsed data.")
                     return
-            wavelengths = [x/100 for x in infile["wavelengths"]]
+            wavelengths = [x / 100 for x in infile["wavelengths"]]
             points = data.shape[0]
     elif input_dir:
         input_dir = Path(input_dir)
@@ -647,30 +647,29 @@ def noise_avg(input_file, output_file, sigmas):
 
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to fit.")
-@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the fit results in. The first column contains the lifetimes.")
-@click.option("--global-fits", type=click.Path(file_okay=True, dir_okay=False), help="A file to store curves computed with global fit parameters.")
-@click.option("--local-fits", type=click.Path(file_okay=True, dir_okay=False), help="A file to store curves computed with local fit parameters.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to store the fit results in.")
+@click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
+@click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
 @click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
 @click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
-def global_fit(input_dir, output_file, global_fits, local_fits, lifetimes, fit_after):
+def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifetimes, fit_after):
     """Do a global fit with the provided lifetimes.
     """
     input_dir = Path(input_dir)
-    output_file = Path(output_file)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True)
     bounded_lifetimes = compute.bounded_lifetimes_from_args(lifetimes)
     data, ts = load_dir_into_arr(input_dir)
+    wls = [int(f.stem) for f in sorted(input_dir.iterdir()) if f.suffix == ".txt"]
     lfit_amps = compute.lfits_for_gfit(data, ts, fit_after, bounded_lifetimes)
-    if local_fits:
+    if save_lfit_curves:
         fitted = compute.curves_from_fit(lfit_amps, [b.lifetime for b in bounded_lifetimes], ts, fit_after)
-        np.save(Path(local_fits), fitted)
+        compute.save_fitted_curves(output_dir / "lfit_curves", fitted, ts, wls)
     gfit_amps, gfit_lifetimes = compute.global_fit(data, ts, fit_after, lfit_amps, bounded_lifetimes)
-    out_data = np.empty((len(lifetimes), data.shape[1] + 1))
-    out_data[:, 0] = np.asarray(gfit_lifetimes)
-    out_data[:, 1:] = gfit_amps
-    np.save(output_file, out_data)
-    if global_fits:
+    if save_gfit_curves:
         fitted = compute.curves_from_fit(gfit_amps, gfit_lifetimes, ts, fit_after)
-        np.save(Path(global_fits), fitted)
+        compute.save_fitted_curves(output_dir / "gfit_curves", fitted, ts, wls)
+    compute.save_global_fit_spectra(output_dir, gfit_amps, wls, gfit_lifetimes)
     return
 
 

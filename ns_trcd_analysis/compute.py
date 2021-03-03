@@ -329,3 +329,34 @@ def curves_from_fit(amps, lifetimes, ts, fit_after):
         exp_args = list(amps[:, i]) + lifetimes
         fits[ts > fit_after, i] = multi_exp(ts[ts > fit_after], *exp_args)
     return fits
+
+
+def save_global_fit_spectra(output_dir, amps, wls, lifetimes):
+    """Save the decay associated spectra from a global fit.
+    """
+    output_dir.mkdir(exist_ok=True)
+    out_data = np.empty((len(wls), 2))
+    for i in range(len(lifetimes)):
+        t = lifetimes[i]
+        out_file = output_dir / f"{t:.2f}us.txt"
+        out_data[:, 1] = amps[i, :]
+        np.savetxt(out_file, out_data, delimiter=",")
+    decimal_wls = [w / 100 for w in wls]
+    np.save(output_dir / "wls.npy", np.asarray(decimal_wls))
+    spectra_array = np.hstack((np.asarray(lifetimes).reshape(len(lifetimes), 1), amps))
+    np.save(output_dir / "spectra.npy", spectra_array)
+
+
+def save_fitted_curves(output_dir, curves, ts, wls):
+    """Save a copy of fitted curves as .npy and as individual CSVs.
+    """
+    output_dir.mkdir(exist_ok=True)
+    out_data = np.empty((len(ts), 2))
+    out_data[:, 0] = ts
+    for i in range(len(wls)):
+        out_file = output_dir / f"{wls[i]}.txt"
+        out_data[:, 1] = curves[:, i]
+        np.savetxt(out_file, out_data, delimiter=",")
+    np.save(output_dir / "x.npy", ts)
+    np.save(output_dir / "curves.npy", curves)
+
