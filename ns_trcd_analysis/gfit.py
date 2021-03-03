@@ -31,7 +31,7 @@ def task(name, task_num, spec_in, spec_out, instr_spec, lifetimes, amplitudes):
     """The text for a single curve to be fit.
 
     The formatting of this file is bizarre. I have no idea why some of the newlines
-    are required, they just are. ¯\_(ツ)_/¯
+    are required, they just are. ¯\\_(ツ)_//¯
     """
     lines = []
     lines.append(f"****** Task #{task_num}: {name}")

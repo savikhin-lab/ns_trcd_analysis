@@ -30,7 +30,7 @@ def valid_channel(channel_str) -> bool:
         click.echo("A channel specifier is required when the data format is 'raw'.", err=True)
         return False
     try:
-        chan = CHANNEL_MAP[channel_str]
+        _ = CHANNEL_MAP[channel_str]
     except KeyError:
         click.echo("Invalid channel name.", err=True)
         return False
@@ -66,10 +66,10 @@ def save_fig(x, y, path, xlabel=None, ylabel=None, title=None, remove_dev=False)
     if remove_dev:
         mean = np.mean(y)
         std_dev = np.std(y)
-        devs = np.abs((y - mean)/std_dev)
+        devs = np.abs((y - mean) / std_dev)
         for i in range(len(y)):
             if devs[i] > 2:
-                y[i] = (y[i-2] + y[i+2])/2
+                y[i] = (y[i - 2] + y[i + 2]) / 2
     fig, ax = plt.subplots(figsize=(5, 3))
     ax.plot(x, y, linewidth=0.5)
     if xlabel:
@@ -87,7 +87,7 @@ def time_axis(tpp=20e-9, length=20_000) -> np.ndarray:
     """Return the time axis used in experiments.
     """
     ts = tpp * np.arange(length)
-    ten_percent_point = np.floor(length/10) * tpp
+    ten_percent_point = np.floor(length / 10) * tpp
     ts -= ten_percent_point
     ts *= 1e6  # convert from seconds to microseconds
     return ts
@@ -122,14 +122,14 @@ def compute_splits(points, size) -> List[Tuple[int, int]]:
     cursor = 0
     while True:
         if points_left > size:
-            splits.append((cursor, cursor+size))
+            splits.append((cursor, cursor + size))
             cursor += size
             points_left -= size
             continue
         if points_left == 0:
             break
         else:
-            splits.append((cursor, cursor+points_left))
+            splits.append((cursor, cursor + points_left))
         break
     return splits
 

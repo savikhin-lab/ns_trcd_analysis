@@ -20,7 +20,7 @@ def ingest(input_dir, output_file_path, dark_signals_file=None) -> None:
             par.npy
             perp.npy
             ref.npy
-    
+
     The HDF5 file will have two datasets: "data" and "wavelengths". The "data" dataset contains
     one large array with all of the experiment data. The array has these dimensions:
     (20000, 3, <num shots>, <num wavelengths>, 1)
@@ -38,7 +38,7 @@ def ingest(input_dir, output_file_path, dark_signals_file=None) -> None:
         outfile.create_dataset("data", (20_000, 3, num_shots, len(wls), 1))
         data = outfile["data"]
         outfile.create_dataset("wavelengths", (len(wls),), data=wls)
-        dir_indices = [x for x in product(range(1, num_shots+1), range(len(wls)))]
+        dir_indices = [x for x in product(range(1, num_shots + 1), range(len(wls)))]
         with click.progressbar(dir_indices, label="Reading data") as indices:
             for shot_index, wl_index in indices:
                 datadir = input_dir / f"{shot_index:04d}" / f"{wls[wl_index]}"

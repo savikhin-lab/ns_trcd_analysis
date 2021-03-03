@@ -1,8 +1,6 @@
 import click
-import h5py
 import numpy as np
 from typing import Union
-from . import core
 
 
 def valid_shot_slice_point(slice_time, slice_index, points) -> bool:
@@ -45,8 +43,6 @@ def abs_slice_at_index(infile, t_idx, wl_idx) -> np.ndarray:
     """Return an absorption slice along the shot axis.
     """
     ds = infile["data"]
-    shots = ds.shape[1]
-    slice_values = np.empty(shots)
     par = ds[t_idx, 0, :, wl_idx, 0]
     ref = ds[t_idx, 2, :, wl_idx, 0]
     absorption = -np.log10(par / ref)
