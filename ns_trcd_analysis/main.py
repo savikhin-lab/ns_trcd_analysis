@@ -725,6 +725,24 @@ def double_fit(da_dir, cd_dir, output_dir, fit_after, lifetimes, save_gfit_curve
     compute.save_double_fit_spectra(output_dir, gfit_amps, gfit_lifetimes, da_wls, cd_wls)
 
 
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of text files to assemble into an NPY file.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The new file to store the data in.")
+def txtdir2npy(input_dir, output_file):
+    """Load a directory of CSV files into a single NPY file.
+
+    \b
+    One copy of the first column in the text files (time, wavelength, etc) will be included in the
+    first column of the NPY file.
+    """
+    input_dir = Path(input_dir)
+    output_file = Path(output_file)
+    data, xs = load_dir_into_arr(input_dir)
+    xs = xs.reshape((len(xs), 1))
+    out_data = np.hstack((xs, data))
+    np.save(output_file, out_data)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -744,3 +762,4 @@ cli.add_command(noiserep)
 cli.add_command(noise_avg)
 cli.add_command(global_fit)
 cli.add_command(double_fit)
+cli.add_command(txtdir2npy)
