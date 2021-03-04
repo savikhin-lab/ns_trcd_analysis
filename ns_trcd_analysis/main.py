@@ -279,7 +279,9 @@ def average(input_file, fig, txt):
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD data to subtract oscillations from.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to store the oscillation-free data in.")
-def rmosc(input_dir, output_dir):
+@click.option("-a", "--after", default=1, type=click.FLOAT, help="Only fit the oscillations after this time.")
+@click.option("-w", "--subtract-whole-curve", "whole_curve", is_flag=True, help="Subtract the whole oscillation curve after fitting the oscillations. The default behavior (without this flag) is to only subtract the oscillations after the time specified by the '-a' flag.")
+def rmosc(input_dir, output_dir, after, whole_curve):
     """Remove oscillations from averaged dCD data.
     """
     input_dir = Path(input_dir)
@@ -300,11 +302,12 @@ def rmosc(input_dir, output_dir):
             original = np.loadtxt(f, delimiter=",")[:, 1]
 
             def minimize_me(x):
-                return np.std(original[ts > 1] - x * osc_smoothed[ts > 1])
+                return np.std(original[ts > after] - x * osc_smoothed[ts > after])
 
             res = minimize_scalar(minimize_me)
             scaled_osc = res.x * osc_smoothed
-            scaled_osc[ts <= 1] *= 0
+            if not whole_curve:
+                scaled_osc[ts <= after] *= 0
             osc_free = original - scaled_osc
             out_data = np.empty((len(ts), 2))
             out_data[:, 0] = ts
