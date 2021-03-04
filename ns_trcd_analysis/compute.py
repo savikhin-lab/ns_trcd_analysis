@@ -364,8 +364,8 @@ def save_fitted_curves(output_dir, curves, ts, wls):
 def save_double_lfits(output_dir, data, ts, da_wls, cd_wls):
     """Save the fitted curves from the initial local fits done before a double global fit.
     """
-    da_dir = output_dir / "lfit_da"
-    cd_dir = output_dir / "lfit_cd"
+    da_dir = output_dir / "da_lfit_curves"
+    cd_dir = output_dir / "cd_lfit_curves"
     da_data = data[:, :len(da_wls)]
     cd_data = data[:, len(da_wls):]
     save_fitted_curves(da_dir, da_data, ts, da_wls)
@@ -375,8 +375,8 @@ def save_double_lfits(output_dir, data, ts, da_wls, cd_wls):
 def save_double_gfits(output_dir, data, ts, da_wls, cd_wls):
     """Save the fitted curves from a double global fit.
     """
-    da_dir = output_dir / "gfit_da"
-    cd_dir = output_dir / "gfit_cd"
+    da_dir = output_dir / "da_gfit_curves"
+    cd_dir = output_dir / "cd_gfit_curves"
     da_data = data[:, :len(da_wls)]
     cd_data = data[:, len(da_wls):]
     save_fitted_curves(da_dir, da_data, ts, da_wls)
@@ -388,8 +388,8 @@ def save_double_fit_spectra(output_dir, amps, lifetimes, da_wls, cd_wls):
     """
     da_spectra = amps[:, :len(da_wls)]
     cd_spectra = amps[:, len(da_wls):]
-    da_dir = output_dir / "da"
-    cd_dir = output_dir / "cd"
+    da_dir = output_dir / "da_spectra"
+    cd_dir = output_dir / "cd_spectra"
     save_global_fit_spectra(da_dir, da_spectra, da_wls, lifetimes)
     save_global_fit_spectra(cd_dir, cd_spectra, cd_wls, lifetimes)
     return
