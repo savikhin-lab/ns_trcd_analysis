@@ -2,6 +2,8 @@ import click
 import h5py
 import numpy as np
 from pathlib import Path
+from scipy.optimize import minimize_scalar
+from scipy.signal import savgol_filter
 from . import core
 from . import compute
 from . import extract
@@ -275,25 +277,40 @@ def average(input_file, fig, txt):
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to subtract oscillations from.")
-@click.option("-t", "--txt-data", "txt", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscillation data in text format.")
-def rmosc(input_file, txt):
-    """Remove oscillations from averaged dA or dCD data.
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD data to subtract oscillations from.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to store the oscillation-free data in.")
+def rmosc(input_dir, output_dir):
+    """Remove oscillations from averaged dCD data.
     """
-    with h5py.File(input_file, "r+") as infile:
-        try:
-            avg_data = infile["average"]
-        except KeyError:
-            click.echo("File does not contain averaged dA or dCD data.")
-            return
-        osc_data = np.loadtxt(Path(txt), delimiter=",")[:, 1]
-        if len(avg_data[:, 0]) != len(osc_data):
-            click.echo("Averaged data and oscillation data are not the same length.")
-            return
-        num_wls = avg_data.shape[1]
-        infile.copy(infile["average"], "osc_free")
-        for i in range(num_wls):
-            infile["osc_free"][:, i] -= osc_data
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True)
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    if "85000" not in [f.stem for f in files]:
+        click.echo("Data does not contain an 850nm curve.", err=True)
+        return
+    ts = np.loadtxt(files[0], delimiter=",")[:, 0]
+    wavelengths = [int(f.stem) for f in files]
+    osc_index = wavelengths.index(85000)
+    osc_raw = np.loadtxt(files[osc_index], delimiter=",")[:, 1]
+    osc_smoothed = savgol_filter(osc_raw, 11, 3)
+    ts = core.time_axis()
+    with click.progressbar(files, label="Removing oscillations") as files_iter:
+        for i, f in enumerate(files_iter):
+            original = np.loadtxt(f, delimiter=",")[:, 1]
+
+            def minimize_me(x):
+                return np.std(original[ts > 1] - x * osc_smoothed[ts > 1])
+
+            res = minimize_scalar(minimize_me)
+            scaled_osc = res.x * osc_smoothed
+            scaled_osc[ts <= 1] *= 0
+            osc_free = original - scaled_osc
+            out_data = np.empty((len(ts), 2))
+            out_data[:, 0] = ts
+            out_data[:, 1] = osc_free
+            output_file = output_dir / f.name
+            np.savetxt(output_file, out_data, delimiter=",")
     return
 
 
@@ -376,7 +393,7 @@ def importscript(input_dir, output_file):
 
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that holds the data files to shift.")
-@click.option("-t", "--time-shift", required=True, type=click.FLOAT, help="The time in seconds by which to shift the time.")
+@click.option("-t", "--time-shift", required=True, type=click.FLOAT, help="The time in microseconds to add to every point on the time axis.")
 def tshift(input_dir, time_shift):
     """Shift the time axis of data files in the specified directory.
     """
@@ -395,8 +412,8 @@ def tshift(input_dir, time_shift):
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory that contains the data to collapse.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to put the collapsed data into.")
-@click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse.")
-@click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval.")
+@click.option("-t", "--cutoff-time", "times", required=True, multiple=True, type=click.FLOAT, help="The times at which to change the number of points to collapse. You may specify this multiple times to collapse differently at different times.")
+@click.option("-c", "--chunk-size", "cpoints", required=True, multiple=True, type=click.INT, help="The number of points to collapse at each interval. You may specify this multiple times to collapse differently at different times.")
 def collapse(input_dir, output_dir, times, cpoints):
     """Collapse the data in the specified directory so that later times use fewer points.
     """
