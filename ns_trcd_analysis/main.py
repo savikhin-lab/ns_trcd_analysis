@@ -295,7 +295,8 @@ def rmosc(input_dir, output_dir, after, whole_curve):
     wavelengths = [int(f.stem) for f in files]
     osc_index = wavelengths.index(85000)
     osc_raw = np.loadtxt(files[osc_index], delimiter=",")[:, 1]
-    osc_smoothed = savgol_filter(osc_raw, 11, 3)
+    osc_smoothed = osc_raw
+    osc_smoothed[ts > after] = savgol_filter(osc_raw[ts > after], 11, 3)
     ts = core.time_axis()
     with click.progressbar(files, label="Removing oscillations") as files_iter:
         for i, f in enumerate(files_iter):
@@ -305,7 +306,8 @@ def rmosc(input_dir, output_dir, after, whole_curve):
                 return np.std(original[ts > after] - x * osc_smoothed[ts > after])
 
             res = minimize_scalar(minimize_me)
-            scaled_osc = res.x * osc_smoothed
+            scaled_osc = osc_smoothed
+            scaled_osc[ts > after] = res.x * osc_smoothed[ts > after]
             if not whole_curve:
                 scaled_osc[ts <= after] *= 0
             osc_free = original - scaled_osc
