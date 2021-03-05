@@ -143,7 +143,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("-t", "--txt-path", "txt", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store CSVs of each shot.")
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
-@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
+@click.option("-w", "--wavelength", type=click.FLOAT, help="The wavelength to inspect.")
 @click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
 @click.option("--averaged", is_flag=True, help="Extract only averaged data if it exists.")
 @click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data if it exists.")
@@ -199,7 +199,7 @@ def export(input_file, fig, txt, format, channel, wavelength, without_pump, aver
             if not wavelength:
                 click.echo("Please choose a wavelength.")
                 return
-            wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+            wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), int(wavelength * 100))
             if wl_idx is None:
                 click.echo("Wavelength not found.")
                 return
