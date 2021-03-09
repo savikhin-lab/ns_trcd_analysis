@@ -1,6 +1,7 @@
 import click
 import h5py
 import numpy as np
+import json
 from pathlib import Path
 from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter
@@ -745,6 +746,47 @@ def txtdir2npy(input_dir, output_file):
     np.save(output_file, out_data)
 
 
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("-s", "--scale", default=1.25, type=click.FLOAT, help="The filter cutoff in terms of the mean of the integral of the band between the upper and lower frequencies.")
+@click.option("--f-upper", default=0.8, type=click.FLOAT, help="The upper cutoff frequency in MHz.")
+@click.option("--f-lower", default=0.2, type=click.FLOAT, help="The lower cutoff frequency in MHz.")
+def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
+    """Produce a list of shots to filter based on the noise between an upper and lower frequency.
+
+    \b
+    The noise between the upper and lower frequencies is integrated and averaged for each wavelength.
+    If the integrated noise for a shot is greater than 'scale' times the mean of the integrated noise
+    for the wavelength, that shot is filtered out.
+
+    The noise file is a JSON file where the top level keys correspond to wavelengths, and the values of
+    those keys are arrays of shots to ignore when averaging the data.
+    """
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    ffts = np.absolute(np.fft.rfft(data, axis=0))
+    freqs = np.fft.fftfreq(data.shape[0], 0.02)[:(data.shape[0] // 2 + 1)]
+    freqs[-1] *= -1  # Highest freq is always negative for whatever reason
+    band_indices = (freqs > f_lower) & (freqs < f_upper)
+    band_sums = np.apply_along_axis(lambda x: np.sum(x[band_indices]), 0, ffts)
+    band_means = np.mean(band_sums, axis=0)
+    filtered = {}
+    for wl in range(data.shape[2]):
+        filtered[wl] = []
+        for shot in range(data.shape[1]):
+            if band_sums[shot, wl] > scale * band_means[wl]:
+                filtered[wl].append(shot)
+    if filter_file.exists():
+        old_filtered = compute.load_filter_list(filter_file)
+        filtered = compute.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -765,3 +807,4 @@ cli.add_command(noise_avg)
 cli.add_command(global_fit)
 cli.add_command(double_fit)
 cli.add_command(txtdir2npy)
+cli.add_command(fft_filter)
