@@ -4,13 +4,11 @@ import json
 from .core import POINTS
 
 
-def reject_sigma(infile, sigmas):
+def reject_sigma(data, sigmas):
     """Reject shots whose noise is a multiple of the average noise.
     """
-    _, shots, num_wls = infile["data"].shape
-    data = np.empty((POINTS, shots, num_wls))
-    infile["data"].read_direct(data)
-    rejected = dict()
+    _, shots, num_wls = data.shape
+    rejected = {}
     for wl_idx in range(num_wls):
         avg_stddev = data[:, :, wl_idx].std(axis=0).mean()
         rejected_shots = list()

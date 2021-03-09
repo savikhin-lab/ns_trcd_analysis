@@ -642,30 +642,23 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
-@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
-def noiserep(input_file, sigmas):
-    """List the curves that would be rejected using the specified criteria.
-
-    Note: This only works with dA or dCD files.
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the list of rejected shots in.")
+@click.option("-s", "--scale", default=2.0, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+def sigma_filter(data_file, filter_file, scale):
+    """Reject shots based on whether their noise is within a certain number of standard deviations of the mean.
     """
-    with h5py.File(input_file, "r") as infile:
-        report = noise.reject_sigma(infile, sigmas)
-        click.echo(report)
-    return
-
-
-@click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
-@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected data in.")
-@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
-def noise_avg(input_file, output_file, sigmas):
-    """Average dA or dCD data without including noisy shots.
-    """
-    with h5py.File(input_file, "r") as infile:
-        report = noise.reject_sigma(infile, sigmas)
-        noise.selective_average(infile, output_file, report)
-    return
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as f:
+        data = np.empty_like(f["data"])
+        f["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    filtered = noise.reject_sigma(data, scale)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
 
 
 @click.command()
@@ -776,6 +769,21 @@ def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
         json.dump(filtered, f)
 
 
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the shots to exclude from the average.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected average in.")
+def filter_avg(data_file, filter_file, output_file):
+    """Average data while excluding shots contained in the filter file.
+    """
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    output_file = Path(output_file)
+    filter_list = noise.load_filter_list(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        noise.selective_average(infile, output_file, filter_list)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -791,9 +799,9 @@ cli.add_command(gfitfile)
 cli.add_command(importscript)
 cli.add_command(tshift)
 cli.add_command(collapse)
-cli.add_command(noiserep)
-cli.add_command(noise_avg)
 cli.add_command(global_fit)
 cli.add_command(double_fit)
 cli.add_command(txtdir2npy)
 cli.add_command(fft_filter)
+cli.add_command(sigma_filter)
+cli.add_command(filter_avg)
