@@ -394,37 +394,3 @@ def save_double_fit_spectra(output_dir, amps, lifetimes, da_wls, cd_wls):
     save_global_fit_spectra(da_dir, da_spectra, da_wls, lifetimes)
     save_global_fit_spectra(cd_dir, cd_spectra, cd_wls, lifetimes)
     return
-
-
-def load_filter_list(filename):
-    """
-    """
-    with filename.open("r") as f:
-        tmp = json.load(f)
-    # Keys get loaded as strings, need to convert to ints
-    loaded = {}
-    for k in tmp.keys():
-        loaded[int(k)] = tmp[k]
-    return loaded
-
-
-def merge_filter_lists(a, b):
-    """Merge two lists of shots to filter.
-    """
-    merged_keys = set(a.keys())
-    merged_keys.update(set(b.keys()))
-    merged_keys = sorted(list(merged_keys))
-    out = {}
-    for i in merged_keys:
-        x = a.get(i)
-        y = b.get(i)
-        if all([x, y]):
-            merged = set(x)
-            merged.update(set(y))
-            merged = sorted(list(merged))
-            out[i] = merged
-        elif x is not None:
-            out[i] = x
-        else:
-            out[i] = y
-    return out

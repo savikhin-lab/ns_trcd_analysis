@@ -768,21 +768,10 @@ def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
     with h5py.File(data_file, "r") as infile:
         data = np.empty_like(infile["data"])
         infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
-    ffts = np.absolute(np.fft.rfft(data, axis=0))
-    freqs = np.fft.fftfreq(data.shape[0], 0.02)[:(data.shape[0] // 2 + 1)]
-    freqs[-1] *= -1  # Highest freq is always negative for whatever reason
-    band_indices = (freqs > f_lower) & (freqs < f_upper)
-    band_sums = np.apply_along_axis(lambda x: np.sum(x[band_indices]), 0, ffts)
-    band_means = np.mean(band_sums, axis=0)
-    filtered = {}
-    for wl in range(data.shape[2]):
-        filtered[wl] = []
-        for shot in range(data.shape[1]):
-            if band_sums[shot, wl] > scale * band_means[wl]:
-                filtered[wl].append(shot)
+    filtered = noise.reject_fft(data, scale, f_upper, f_lower)
     if filter_file.exists():
-        old_filtered = compute.load_filter_list(filter_file)
-        filtered = compute.merge_filter_lists(filtered, old_filtered)
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
     with filter_file.open("w") as f:
         json.dump(filtered, f)
 
