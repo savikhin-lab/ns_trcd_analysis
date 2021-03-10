@@ -770,6 +770,28 @@ def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
 
 
 @click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("-s", "--scale", default=0.5, type=click.FLOAT, help="Shots whose integral is below 'scale * mean' will be filtered.")
+@click.option("--start", default=0.1, type=click.FLOAT, help="The start time for the integral.")
+@click.option("--stop", default=50, type=click.FLOAT, help="The stop time for the integral.")
+def int_filter(data_file, filter_file, scale, start, stop):
+    """Produce a list of shots to filter based on their integral between a start and stop time.
+    """
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    filtered = noise.reject_integral(data, scale, start, stop)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
+@click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the shots to exclude from the average.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected average in.")
@@ -804,4 +826,5 @@ cli.add_command(double_fit)
 cli.add_command(txtdir2npy)
 cli.add_command(fft_filter)
 cli.add_command(sigma_filter)
+cli.add_command(int_filter)
 cli.add_command(filter_avg)

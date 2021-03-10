@@ -1,7 +1,7 @@
 import h5py
 import numpy as np
 import json
-from .core import POINTS
+from .core import POINTS, time_axis
 
 
 def reject_sigma(data, sigmas):
@@ -34,6 +34,22 @@ def reject_fft(data, scale, upper, lower):
         rejected[wl] = []
         for shot in range(data.shape[1]):
             if band_sums[shot, wl] > scale * band_means[wl]:
+                rejected[wl].append(shot)
+    return rejected
+
+
+def reject_integral(data, scale, start, stop):
+    """Reject shots based on the integral between a start and stop time.
+    """
+    ts = time_axis()
+    t_range = (ts > start) & (ts < stop)
+    sums = np.absolute(np.sum(data[t_range, :, :], axis=0))
+    means = np.mean(sums, axis=0)
+    rejected = {}
+    for wl in range(data.shape[2]):
+        rejected[wl] = []
+        for shot in range(data.shape[1]):
+            if sums[shot, wl] < scale * means[wl]:
                 rejected[wl].append(shot)
     return rejected
 
