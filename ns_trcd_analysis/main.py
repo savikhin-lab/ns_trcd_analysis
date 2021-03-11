@@ -1,6 +1,7 @@
 import click
 import h5py
 import numpy as np
+import json
 from pathlib import Path
 from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter
@@ -143,7 +144,7 @@ def cd(input_file, output_file, delta, average, subtract_background, fig, txt):
 @click.option("-t", "--txt-path", "txt", required=False, type=click.Path(exists=False, file_okay=False, dir_okay=True), help="The directory in which to store CSVs of each shot.")
 @click.option("-d", "--data-format", "format", type=click.Choice(["raw", "da"]), help="The format of the data file.")
 @click.option("-c", "--channel", type=click.Choice(["par", "perp", "ref"]), help="If the format of the data is 'raw', which channel to inspect.")
-@click.option("-w", "--wavelength", type=click.INT, help="The wavelength to inspect.")
+@click.option("-w", "--wavelength", type=click.FLOAT, help="The wavelength to inspect.")
 @click.option("--without-pump", is_flag=True, help="Extract images/CSVs from without-pump data.")
 @click.option("--averaged", is_flag=True, help="Extract only averaged data if it exists.")
 @click.option("--osc-free", is_flag=True, help="Extract only oscillation-free data if it exists.")
@@ -199,7 +200,7 @@ def export(input_file, fig, txt, format, channel, wavelength, without_pump, aver
             if not wavelength:
                 click.echo("Please choose a wavelength.")
                 return
-            wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), wavelength)
+            wl_idx = core.index_for_wavelength(list(infile["wavelengths"]), int(wavelength * 100))
             if wl_idx is None:
                 click.echo("Wavelength not found.")
                 return
@@ -279,7 +280,9 @@ def average(input_file, fig, txt):
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD data to subtract oscillations from.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to store the oscillation-free data in.")
-def rmosc(input_dir, output_dir):
+@click.option("-a", "--after", default=1, type=click.FLOAT, help="Only fit the oscillations after this time.")
+@click.option("-w", "--subtract-whole-curve", "whole_curve", is_flag=True, help="Subtract the whole oscillation curve after fitting the oscillations. The default behavior (without this flag) is to only subtract the oscillations after the time specified by the '-a' flag.")
+def rmosc(input_dir, output_dir, after, whole_curve):
     """Remove oscillations from averaged dCD data.
     """
     input_dir = Path(input_dir)
@@ -293,18 +296,21 @@ def rmosc(input_dir, output_dir):
     wavelengths = [int(f.stem) for f in files]
     osc_index = wavelengths.index(85000)
     osc_raw = np.loadtxt(files[osc_index], delimiter=",")[:, 1]
-    osc_smoothed = savgol_filter(osc_raw, 11, 3)
+    osc_smoothed = osc_raw
+    osc_smoothed[ts > after] = savgol_filter(osc_raw[ts > after], 11, 3)
     ts = core.time_axis()
     with click.progressbar(files, label="Removing oscillations") as files_iter:
         for i, f in enumerate(files_iter):
             original = np.loadtxt(f, delimiter=",")[:, 1]
 
             def minimize_me(x):
-                return np.std(original[ts > 1] - x * osc_smoothed[ts > 1])
+                return np.std(original[ts > after] - x * osc_smoothed[ts > after])
 
             res = minimize_scalar(minimize_me)
-            scaled_osc = res.x * osc_smoothed
-            scaled_osc[ts <= 1] *= 0
+            scaled_osc = osc_smoothed
+            scaled_osc[ts > after] = res.x * osc_smoothed[ts > after]
+            if not whole_curve:
+                scaled_osc[ts <= after] *= 0
             osc_free = original - scaled_osc
             out_data = np.empty((len(ts), 2))
             out_data[:, 0] = ts
@@ -636,30 +642,23 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 
 
 @click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
-@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
-def noiserep(input_file, sigmas):
-    """List the curves that would be rejected using the specified criteria.
-
-    Note: This only works with dA or dCD files.
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the list of rejected shots in.")
+@click.option("-s", "--scale", default=2.0, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+def sigma_filter(data_file, filter_file, scale):
+    """Reject shots based on whether their noise is within a certain number of standard deviations of the mean.
     """
-    with h5py.File(input_file, "r") as infile:
-        report = noise.reject_sigma(infile, sigmas)
-        click.echo(report)
-    return
-
-
-@click.command()
-@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
-@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected data in.")
-@click.option("-s", "--sigmas", required=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
-def noise_avg(input_file, output_file, sigmas):
-    """Average dA or dCD data without including noisy shots.
-    """
-    with h5py.File(input_file, "r") as infile:
-        report = noise.reject_sigma(infile, sigmas)
-        noise.selective_average(infile, output_file, report)
-    return
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as f:
+        data = np.empty_like(f["data"])
+        f["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    filtered = noise.reject_sigma(data, scale)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
 
 
 @click.command()
@@ -722,6 +721,108 @@ def double_fit(da_dir, cd_dir, output_dir, fit_after, lifetimes, save_gfit_curve
     compute.save_double_fit_spectra(output_dir, gfit_amps, gfit_lifetimes, da_wls, cd_wls)
 
 
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of text files to assemble into an NPY file.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The new file to store the data in.")
+def txtdir2npy(input_dir, output_file):
+    """Load a directory of CSV files into a single NPY file.
+
+    \b
+    One copy of the first column in the text files (time, wavelength, etc) will be included in the
+    first column of the NPY file.
+    """
+    input_dir = Path(input_dir)
+    output_file = Path(output_file)
+    data, xs = load_dir_into_arr(input_dir)
+    xs = xs.reshape((len(xs), 1))
+    out_data = np.hstack((xs, data))
+    np.save(output_file, out_data)
+
+
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("-s", "--scale", default=1.25, type=click.FLOAT, help="The filter cutoff in terms of the mean of the integral of the band between the upper and lower frequencies.")
+@click.option("--f-upper", default=0.8, type=click.FLOAT, help="The upper cutoff frequency in MHz.")
+@click.option("--f-lower", default=0.2, type=click.FLOAT, help="The lower cutoff frequency in MHz.")
+def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
+    """Produce a list of shots to filter based on the noise between an upper and lower frequency.
+
+    \b
+    The noise between the upper and lower frequencies is integrated and averaged for each wavelength.
+    If the integrated noise for a shot is greater than 'scale' times the mean of the integrated noise
+    for the wavelength, that shot is filtered out.
+
+    The noise file is a JSON file where the top level keys correspond to wavelengths, and the values of
+    those keys are arrays of shots to ignore when averaging the data.
+    """
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    filtered = noise.reject_fft(data, scale, f_upper, f_lower)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("-s", "--scale", default=0.5, type=click.FLOAT, help="Shots whose integral is below 'scale * mean' will be filtered.")
+@click.option("--start", default=0.1, type=click.FLOAT, help="The start time for the integral.")
+@click.option("--stop", default=50, type=click.FLOAT, help="The stop time for the integral.")
+def int_filter(data_file, filter_file, scale, start, stop):
+    """Produce a list of shots to filter based on their integral between a start and stop time.
+    """
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    filtered = noise.reject_integral(data, scale, start, stop)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the shots to exclude from the average.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected average in.")
+def filter_avg(data_file, filter_file, output_file):
+    """Average data while excluding shots contained in the filter file.
+    """
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    output_file = Path(output_file)
+    filter_list = noise.load_filter_list(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        noise.selective_average(infile, output_file, filter_list)
+
+
+@click.command()
+@click.option("-r", "--raw-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of dA or dCD that were fit.")
+@click.option("-f", "--fit-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of fitted curves.")
+@click.option("-a", "--after", default=0.1, type=click.FLOAT, help="Only compare fits after a certain time.")
+def chi2(raw_dir, fit_dir, after):
+    """Calculate the chi2 of a global fit.
+    """
+    raw_dir = Path(raw_dir)
+    fit_dir = Path(fit_dir)
+    raw_data, t = load_dir_into_arr(raw_dir)
+    fit_data, _ = load_dir_into_arr(fit_dir)
+    diffs = raw_data[t > after, :] - fit_data[t > after, :]
+    points = raw_data[t > after, :].shape[0] * raw_data.shape[1]
+    norm = np.linalg.norm(diffs) / points
+    click.echo(f"Chi2: {norm:.2e}")
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -737,7 +838,11 @@ cli.add_command(gfitfile)
 cli.add_command(importscript)
 cli.add_command(tshift)
 cli.add_command(collapse)
-cli.add_command(noiserep)
-cli.add_command(noise_avg)
 cli.add_command(global_fit)
 cli.add_command(double_fit)
+cli.add_command(txtdir2npy)
+cli.add_command(fft_filter)
+cli.add_command(sigma_filter)
+cli.add_command(int_filter)
+cli.add_command(filter_avg)
+cli.add_command(chi2)

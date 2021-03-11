@@ -1,15 +1,14 @@
 import h5py
 import numpy as np
-from .core import POINTS
+import json
+from .core import POINTS, time_axis
 
 
-def reject_sigma(infile, sigmas):
+def reject_sigma(data, sigmas):
     """Reject shots whose noise is a multiple of the average noise.
     """
-    _, shots, num_wls = infile["data"].shape
-    data = np.empty((POINTS, shots, num_wls))
-    infile["data"].read_direct(data)
-    rejected = dict()
+    _, shots, num_wls = data.shape
+    rejected = {}
     for wl_idx in range(num_wls):
         avg_stddev = data[:, :, wl_idx].std(axis=0).mean()
         rejected_shots = list()
@@ -18,6 +17,40 @@ def reject_sigma(infile, sigmas):
             if shot_noises[shot_idx] > (sigmas * avg_stddev):
                 rejected_shots.append(shot_idx)
         rejected[wl_idx] = rejected_shots
+    return rejected
+
+
+def reject_fft(data, scale, upper, lower):
+    """Reject shots that have too much noise in a given frequency band.
+    """
+    ffts = np.absolute(np.fft.rfft(data, axis=0))
+    freqs = np.fft.fftfreq(data.shape[0], 0.02)[:(data.shape[0] // 2 + 1)]
+    freqs[-1] *= -1  # Highest freq is always negative for whatever reason
+    band_indices = (freqs > lower) & (freqs < upper)
+    band_sums = np.apply_along_axis(lambda x: np.sum(x[band_indices]), 0, ffts)
+    band_means = np.mean(band_sums, axis=0)
+    rejected = {}
+    for wl in range(data.shape[2]):
+        rejected[wl] = []
+        for shot in range(data.shape[1]):
+            if band_sums[shot, wl] > scale * band_means[wl]:
+                rejected[wl].append(shot)
+    return rejected
+
+
+def reject_integral(data, scale, start, stop):
+    """Reject shots based on the integral between a start and stop time.
+    """
+    ts = time_axis()
+    t_range = (ts > start) & (ts < stop)
+    sums = np.absolute(np.sum(data[t_range, :, :], axis=0))
+    means = np.mean(sums, axis=0)
+    rejected = {}
+    for wl in range(data.shape[2]):
+        rejected[wl] = []
+        for shot in range(data.shape[1]):
+            if sums[shot, wl] < scale * means[wl]:
+                rejected[wl].append(shot)
     return rejected
 
 
@@ -39,3 +72,37 @@ def selective_average(infile, outfile, rejections):
         outfile.create_dataset("data", data=data)
         outfile.create_dataset("average", data=average)
     return
+
+
+def load_filter_list(filename):
+    """Load a filter list from a JSON file.
+    """
+    with filename.open("r") as f:
+        tmp = json.load(f)
+    # Keys get loaded as strings, need to convert to ints
+    loaded = {}
+    for k in tmp.keys():
+        loaded[int(k)] = tmp[k]
+    return loaded
+
+
+def merge_filter_lists(a, b):
+    """Merge two lists of shots to filter.
+    """
+    merged_keys = set(a.keys())
+    merged_keys.update(set(b.keys()))
+    merged_keys = sorted(list(merged_keys))
+    out = {}
+    for i in merged_keys:
+        x = a.get(i)
+        y = b.get(i)
+        if all([x, y]):
+            merged = set(x)
+            merged.update(set(y))
+            merged = sorted(list(merged))
+            out[i] = merged
+        elif x is not None:
+            out[i] = x
+        else:
+            out[i] = y
+    return out
