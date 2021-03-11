@@ -806,6 +806,23 @@ def filter_avg(data_file, filter_file, output_file):
         noise.selective_average(infile, output_file, filter_list)
 
 
+@click.command()
+@click.option("-r", "--raw-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of dA or dCD that were fit.")
+@click.option("-f", "--fit-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of fitted curves.")
+@click.option("-a", "--after", default=0.1, type=click.FLOAT, help="Only compare fits after a certain time.")
+def chi2(raw_dir, fit_dir, after):
+    """Calculate the chi2 of a global fit.
+    """
+    raw_dir = Path(raw_dir)
+    fit_dir = Path(fit_dir)
+    raw_data, t = load_dir_into_arr(raw_dir)
+    fit_data, _ = load_dir_into_arr(fit_dir)
+    diffs = raw_data[t > after, :] - fit_data[t > after, :]
+    points = raw_data[t > after, :].shape[0] * raw_data.shape[1]
+    norm = np.linalg.norm(diffs) / points
+    click.echo(f"Chi2: {norm:.2e}")
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -828,3 +845,4 @@ cli.add_command(fft_filter)
 cli.add_command(sigma_filter)
 cli.add_command(int_filter)
 cli.add_command(filter_avg)
+cli.add_command(chi2)
