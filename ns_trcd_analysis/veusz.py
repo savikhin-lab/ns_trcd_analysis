@@ -9,6 +9,22 @@ Set('StyleSheet/page/height', u'10cm')
 Set('StyleSheet/xy/marker', u'none')"""
 
 
+class Dataset:
+    def __init__(self, fpath, name=None):
+        """A container for the attributes of a dataset"""
+        self.path = fpath
+        if name:
+            self.name = name
+        else:
+            self.name = fpath.stem
+
+    def x(self):
+        return f"{self.name}_col1"
+
+    def y(self):
+        return f"{self.name}_col2"
+
+
 class Page:
     def __init__(self, name, x_lower=None, x_upper=None, x_label=None, y_label=None, key=False):
         """A container for the attributes of a Veusz page."""
@@ -92,26 +108,26 @@ class Graph:
         return lines
 
 
-def load_csv(fname) -> str:
+def load_csv(ds) -> str:
     """The statement that imports a CSV file into Veusz.
     """
-    return f"ImportFileCSV(u'{fname.resolve()}', linked=True, dsprefix=u'{fname.stem}_')"
+    return f"ImportFileCSV(u'{ds.path.resolve()}', linked=True, dsprefix=u'{ds.name}_')"
 
 
-def load_npy(fname) -> str:
+def load_npy(ds) -> str:
     """The statement that imports a NumPy NPY file into Veusz.
     """
-    return f"ImportFilePlugin(u'Numpy NPY import', u'{fname.resolve()}', linked=True, name=u'{fname.stem}')"
+    return f"ImportFilePlugin(u'Numpy NPY import', u'{ds.path.resolve()}', linked=True, name=u'{ds.name}')"
 
 
 def plot_separate(output_file, files, opts):
     """Create a Veusz file where each input file is a separate plot."""
     chunks = [style_settings]
-    for f in files:
-        chunks.append(load_csv(f))
-    for f in files:
-        page_lines = Page(f.stem, **opts).render()
-        graph_lines = Graph("plot", f"{f.stem}_col1", f"{f.stem}_col2").render()
+    datasets = [Dataset(f) for f in files]
+    chunks.extend([load_csv(d) for d in datasets])
+    for d in datasets:
+        page_lines = Page(d.name, **opts).render()
+        graph_lines = Graph("plot", d.x(), d.y()).render()
         chunks.append("\n".join([page_lines, graph_lines, "To('..')", "To('..')"]))
     contents = "\n".join(chunks)
     with output_file.open("w") as f:
@@ -121,19 +137,19 @@ def plot_separate(output_file, files, opts):
 def plot_combined(output_file, files, opts):
     """Create a Veusz file where all the data is on a single plot."""
     chunks = [style_settings]
-    for f in files:
-        chunks.append(load_csv(f))
-    chunks.append(page_with_combined_plot(files, opts))
+    datasets = [Dataset(f) for f in files]
+    chunks.extend([load_csv(d) for d in datasets])
+    chunks.append(page_with_combined_plot(datasets, opts))
     contents = "\n".join(chunks)
     with output_file.open("w") as f:
         f.write(contents)
 
 
-def page_with_combined_plot(files, opts) -> str:
+def page_with_combined_plot(datasets, opts) -> str:
     """Generates the string for a page with multiple items on one plot."""
     chunks = [Page("plot", **opts).render()]
-    for f in files:
-        graph = Graph(f"{f.stem}", f"{f.stem}_col1", f"{f.stem}_col2")
+    for d in datasets:
+        graph = Graph(d.name, d.x(), d.y())
         chunks.append(graph.render())
     chunks.append("To('..')")
     chunks.append("To('..')")
