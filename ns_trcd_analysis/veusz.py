@@ -26,9 +26,12 @@ class Dataset:
 
 
 class Page:
-    def __init__(self, name, x_lower=None, x_upper=None, x_label=None, y_label=None, key=False):
+    def __init__(self, name=None, x_lower=None, x_upper=None, x_label=None, y_label=None, key=False):
         """A container for the attributes of a Veusz page."""
-        self.name = name
+        if name:
+            self.name = name
+        else:
+            self.name = "plot"
         self.x_lower = x_lower
         self.x_upper = x_upper
         self.x_label = x_label
@@ -126,7 +129,9 @@ def plot_separate(output_file, files, opts):
     datasets = [Dataset(f) for f in files]
     chunks.extend([load_csv(d) for d in datasets])
     for d in datasets:
-        page_lines = Page(d.name, **opts).render()
+        plot_opts = opts
+        plot_opts["name"] = d.name
+        page_lines = Page(**plot_opts).render()
         graph_lines = Graph("plot", d.x(), d.y()).render()
         chunks.append("\n".join([page_lines, graph_lines, "To('..')", "To('..')"]))
     contents = "\n".join(chunks)
@@ -147,7 +152,7 @@ def plot_combined(output_file, files, opts):
 
 def page_with_combined_plot(datasets, opts) -> str:
     """Generates the string for a page with multiple items on one plot."""
-    chunks = [Page("plot", **opts).render()]
+    chunks = [Page(**opts).render()]
     for d in datasets:
         graph = Graph(d.name, d.x(), d.y())
         chunks.append(graph.render())
