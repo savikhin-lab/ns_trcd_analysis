@@ -123,12 +123,18 @@ def plot_combined(output_file, files, opts):
     chunks = [style_settings]
     for f in files:
         chunks.append(load_csv(f))
-    chunks.append(Page("plot", **opts).render())
+    chunks.append(page_with_combined_plot(files, opts))
+    contents = "\n".join(chunks)
+    with output_file.open("w") as f:
+        f.write(contents)
+
+
+def page_with_combined_plot(files, opts) -> str:
+    """Generates the string for a page with multiple items on one plot."""
+    chunks = [Page("plot", **opts).render()]
     for f in files:
         graph = Graph(f"{f.stem}", f"{f.stem}_col1", f"{f.stem}_col2")
         chunks.append(graph.render())
     chunks.append("To('..')")
     chunks.append("To('..')")
-    contents = "\n".join(chunks)
-    with output_file.open("w") as f:
-        f.write(contents)
+    return "\n".join(chunks)
