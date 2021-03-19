@@ -340,6 +340,7 @@ def save_global_fit_spectra(output_dir, amps, wls, lifetimes):
     for i in range(len(lifetimes)):
         t = lifetimes[i]
         out_file = output_dir / f"{t:.2f}us.txt"
+        out_data[:, 0] = [x / 100 for x in wls]
         out_data[:, 1] = amps[i, :]
         np.savetxt(out_file, out_data, delimiter=",")
     decimal_wls = [w / 100 for w in wls]
