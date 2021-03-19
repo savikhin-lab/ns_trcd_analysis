@@ -13,6 +13,7 @@ from . import images
 from . import noise
 from . import raw2hdf5
 from . import slices
+from . import veusz
 from .core import Channels, valid_channel, load_dir_into_arr
 
 
@@ -823,6 +824,34 @@ def chi2(raw_dir, fit_dir, after):
     click.echo(f"Chi2: {norm:.2e}")
 
 
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing files to fit.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The Veusz file to create.")
+@click.option("--x-lower", type=click.FLOAT, help="A lower bound on the x-axis.")
+@click.option("--x-upper", type=click.FLOAT, help="A upper bound on the x-axis.")
+@click.option("--x-label", type=click.STRING, help="A name for the x-axis.")
+@click.option("--y-label", type=click.STRING, help="A name for the y-axis.")
+@click.option("--combined", is_flag=True, help="Put all the data on a single graph.")
+def plot_dir(input_dir, output_file, x_lower, x_upper, x_label, y_label, combined):
+    """Make plots from the files in a directory.
+
+    All of the files must share the same x-axis.
+    """
+    input_dir = Path(input_dir)
+    output_file = Path(output_file)
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    options = {
+        "x_lower": x_lower,
+        "x_upper": x_upper,
+        "x_label": x_label,
+        "y_label": y_label
+    }
+    if combined:
+        veusz.plot_combined(output_file, files, options)
+    else:
+        veusz.plot_separate(output_file, files, options)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -846,3 +875,4 @@ cli.add_command(sigma_filter)
 cli.add_command(int_filter)
 cli.add_command(filter_avg)
 cli.add_command(chi2)
+cli.add_command(plot_dir)
