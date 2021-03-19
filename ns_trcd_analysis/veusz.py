@@ -10,13 +10,14 @@ Set('StyleSheet/xy/marker', u'none')"""
 
 
 class Page:
-    def __init__(self, name, x_lower=None, x_upper=None, x_label=None, y_label=None):
+    def __init__(self, name, x_lower=None, x_upper=None, x_label=None, y_label=None, key=False):
         """A container for the attributes of a Veusz page."""
         self.name = name
         self.x_lower = x_lower
         self.x_upper = x_upper
         self.x_label = x_label
         self.y_label = y_label
+        self.key = key
 
     def render(self) -> str:
         """Creates a new page with axes ready for graphs."""
@@ -31,6 +32,15 @@ class Page:
             "Set('direction', u'vertical')",
             "To('..')"])
         optional_lines = []
+        if self.key:
+            tmp = [
+                "Add('key', name=u'key1', autoadd=False)",
+                "To(u'key1')",
+                "Set('Text/size', u'10pt')",
+                "Set('Border/hide', True)",
+                "To('..')"
+            ]
+            optional_lines.extend(tmp)
         if self.x_lower is not None:
             tmp = [
                 "To(u'x')",
@@ -76,6 +86,7 @@ class Graph:
             f"To(u'{self.name}')",
             f"Set('xData', u'{self.x_name}')",
             f"Set('yData', u'{self.y_name}')",
+            f"Set('key', u'{self.name}')",
             "To('..')"
         ])
         return lines

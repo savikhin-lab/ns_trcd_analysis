@@ -847,6 +847,7 @@ def plot_dir(input_dir, output_file, x_lower, x_upper, x_label, y_label, combine
         "y_label": y_label
     }
     if combined:
+        options["key"] = True
         veusz.plot_combined(output_file, files, options)
     else:
         veusz.plot_separate(output_file, files, options)
