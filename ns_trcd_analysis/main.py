@@ -853,6 +853,25 @@ def plot_dir(input_dir, output_file, x_lower, x_upper, x_label, y_label, combine
         veusz.plot_separate(output_file, files, options)
 
 
+@click.command()
+@click.option("-d", "--da-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dA data used in the fit.")
+@click.option("-s", "--spectra-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the spectra from the fit.")
+@click.option("-f", "--fitted-curves-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the global fit curves from the fit.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The Veusz file to create.")
+def plot_gfit(da_dir, spectra_dir, fitted_curves_dir, output_file):
+    """Assemble the plots from a global fit.
+
+    Compares the raw data to the fits, and plots the spectra together."""
+    da_dir = Path(da_dir)
+    spectra_dir = Path(spectra_dir)
+    fitted_curves_dir = Path(fitted_curves_dir)
+    output_file = Path(output_file)
+    raw_files = sorted([f for f in da_dir.iterdir() if f.suffix == ".txt"])
+    curve_files = sorted([f for f in fitted_curves_dir.iterdir() if f.suffix == ".txt"])
+    spectra_files = sorted([f for f in spectra_dir.iterdir() if f.suffix == ".txt"])
+    veusz.plot_gfit(raw_files, curve_files, spectra_files, output_file)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -877,3 +896,4 @@ cli.add_command(int_filter)
 cli.add_command(filter_avg)
 cli.add_command(chi2)
 cli.add_command(plot_dir)
+cli.add_command(plot_gfit)

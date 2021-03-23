@@ -1,3 +1,6 @@
+from itertools import chain
+
+
 style_settings = """Set('colorTheme', u'default-latest')
 Set('StyleSheet/axis-function/autoRange', u'next-tick')
 Set('StyleSheet/graph/leftMargin', u'1.5cm')
@@ -92,23 +95,29 @@ class Page:
 
 
 class Graph:
-    def __init__(self, name, x_ds, y_ds):
+    def __init__(self, name, x_ds, y_ds, color=None, thickness=None):
         """A single graph on a Veusz page."""
         self.name = name
         self.x_name = x_ds
         self.y_name = y_ds
+        self.color = color
+        self.thickness = thickness
 
     def render(self) -> str:
         """Render the graph to a string of commands."""
-        lines = "\n".join([
+        lines = [
             f"Add('xy', name=u'{self.name}', autoadd=False)",
             f"To(u'{self.name}')",
             f"Set('xData', u'{self.x_name}')",
             f"Set('yData', u'{self.y_name}')",
-            f"Set('key', u'{self.name}')",
-            "To('..')"
-        ])
-        return lines
+            f"Set('key', u'{self.name}')"
+        ]
+        if self.color:
+            lines.append(f"Set('color', u'{self.color}')")
+        if self.thickness:
+            lines.append(f"Set('PlotLine/width', u'{self.thickness:.2f}pt')")
+        lines.append("To('..')")
+        return "\n".join(lines)
 
 
 def load_csv(ds) -> str:
@@ -159,3 +168,41 @@ def page_with_combined_plot(datasets, opts) -> str:
     chunks.append("To('..')")
     chunks.append("To('..')")
     return "\n".join(chunks)
+
+
+def page_with_graphs(graphs, opts) -> str:
+    """A page made from pre-assembled graphs."""
+    chunks = [Page(**opts).render()]
+    chunks.extend([g.render() for g in graphs])
+    chunks.extend(["To('..')", "To('..')"])
+    return "\n".join(chunks)
+
+
+def plot_gfit(raw_files, fit_files, spectra_files, output_file):
+    """Plot comparison graphs for a global fit."""
+    raw_datasets = [Dataset(f, f"{f.stem}_raw") for f in raw_files]
+    fit_datasets = [Dataset(f, f"{f.stem}_fit") for f in fit_files]
+    spectra_datasets = [Dataset(f) for f in spectra_files]
+    chunks = [style_settings]
+    chunks.extend([load_csv(d) for d in chain(raw_datasets, fit_datasets, spectra_datasets)])
+    spectra_page_opts = {
+        "x_label": "Wavelength (nm)",
+        "x_lower": 780,
+        "x_upper": 850,
+        "name": "spectra"
+    }
+    chunks.append(page_with_combined_plot(spectra_datasets, spectra_page_opts))
+    curve_opts = {
+        "x_label": "Time (us)",
+        "x_lower": -10,
+        "x_upper": 100
+    }
+    for raw, fit in zip(raw_datasets, fit_datasets):
+        page_name = raw.name[:5]
+        curve_opts["name"] = page_name
+        raw_graph = Graph("raw", raw.x(), raw.y(), color="black")
+        fit_graph = Graph("fit", fit.x(), fit.y(), color="red", thickness=1)
+        chunks.append(page_with_graphs([fit_graph, raw_graph], curve_opts))
+    contents = "\n".join(chunks)
+    with output_file.open("w") as file:
+        file.write(contents)
