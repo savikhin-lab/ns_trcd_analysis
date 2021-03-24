@@ -281,7 +281,7 @@ def average(input_file, fig, txt):
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD data to subtract oscillations from.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to store the oscillation-free data in.")
-@click.option("-a", "--after", default=1, type=click.FLOAT, help="Only fit the oscillations after this time.")
+@click.option("-a", "--after", default=1, show_default=True, type=click.FLOAT, help="Only fit the oscillations after this time.")
 @click.option("-w", "--subtract-whole-curve", "whole_curve", is_flag=True, help="Subtract the whole oscillation curve after fitting the oscillations. The default behavior (without this flag) is to only subtract the oscillations after the time specified by the '-a' flag.")
 def rmosc(input_dir, output_dir, after, whole_curve):
     """Remove oscillations from averaged dCD data.
@@ -323,7 +323,7 @@ def rmosc(input_dir, output_dir, after, whole_curve):
 
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to read from.")
-@click.option("-p", "--points", default=1500, help="The number of points to use to calculate the offset (taken from the beginning of the curve.")
+@click.option("-p", "--points", default=1500, show_default=True, help="The number of points to use to calculate the offset (taken from the beginning of the curve.")
 @click.option("--each", is_flag=True, help="Remove the offset of each dA or dCD shot.")
 @click.option("--average", is_flag=True, help="Remove the offset of the averaged dA or dCD data.")
 @click.option("--osc-free", is_flag=True, help="Remove the offset of the oscillation-free dA or dCD data.")
@@ -645,7 +645,7 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 @click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the list of rejected shots in.")
-@click.option("-s", "--scale", default=2.0, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+@click.option("-s", "--scale", default=2.0, show_default=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
 def sigma_filter(data_file, filter_file, scale):
     """Reject shots based on whether their noise is within a certain number of standard deviations of the mean.
     """
@@ -668,7 +668,7 @@ def sigma_filter(data_file, filter_file, scale):
 @click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
 @click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
 @click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
-@click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
+@click.option("-a", "--fit-after", default=0, show_default=True, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
 def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifetimes, fit_after):
     """Do a global fit with the provided lifetimes.
     """
@@ -694,7 +694,7 @@ def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifeti
 @click.option("-d", "--da-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dA files to fit.")
 @click.option("-c", "--cd-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD files to fit.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the fit results.")
-@click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after this time (useful to avoid fitting scattered pump light).")
+@click.option("-a", "--fit-after", default=0, show_default=True, type=click.FLOAT, help="Only fit data after this time (useful to avoid fitting scattered pump light).")
 @click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
 @click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
 @click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
@@ -743,9 +743,9 @@ def txtdir2npy(input_dir, output_file):
 @click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
-@click.option("-s", "--scale", default=1.25, type=click.FLOAT, help="The filter cutoff in terms of the mean of the integral of the band between the upper and lower frequencies.")
-@click.option("--f-upper", default=0.8, type=click.FLOAT, help="The upper cutoff frequency in MHz.")
-@click.option("--f-lower", default=0.2, type=click.FLOAT, help="The lower cutoff frequency in MHz.")
+@click.option("-s", "--scale", default=1.25, show_default=True, type=click.FLOAT, help="The filter cutoff in terms of the mean of the integral of the band between the upper and lower frequencies.")
+@click.option("--f-upper", default=0.8, show_default=True, type=click.FLOAT, help="The upper cutoff frequency in MHz.")
+@click.option("--f-lower", default=0.2, show_default=True, type=click.FLOAT, help="The lower cutoff frequency in MHz.")
 def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
     """Produce a list of shots to filter based on the noise between an upper and lower frequency.
 
@@ -773,9 +773,9 @@ def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
 @click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
-@click.option("-s", "--scale", default=0.5, type=click.FLOAT, help="Shots whose integral is below 'scale * mean' will be filtered.")
-@click.option("--start", default=0.1, type=click.FLOAT, help="The start time for the integral.")
-@click.option("--stop", default=50, type=click.FLOAT, help="The stop time for the integral.")
+@click.option("-s", "--scale", default=0.5, show_default=True, type=click.FLOAT, help="Shots whose integral is below 'scale * mean' will be filtered.")
+@click.option("--start", default=0.1, show_default=True, type=click.FLOAT, help="The start time for the integral.")
+@click.option("--stop", default=50, show_default=True, type=click.FLOAT, help="The stop time for the integral.")
 def int_filter(data_file, filter_file, scale, start, stop):
     """Produce a list of shots to filter based on their integral between a start and stop time.
     """
@@ -810,7 +810,7 @@ def filter_avg(data_file, filter_file, output_file):
 @click.command()
 @click.option("-r", "--raw-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of dA or dCD that were fit.")
 @click.option("-f", "--fit-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of fitted curves.")
-@click.option("-a", "--after", default=0.1, type=click.FLOAT, help="Only compare fits after a certain time.")
+@click.option("-a", "--after", default=0.1, show_default=True, type=click.FLOAT, help="Only compare fits after a certain time.")
 def chi2(raw_dir, fit_dir, after):
     """Calculate the chi2 of a global fit.
     """
