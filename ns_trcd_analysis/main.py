@@ -8,7 +8,7 @@ from scipy.signal import savgol_filter
 from . import core
 from . import compute
 from . import extract
-from . import gfit
+from . import ssolve_gfit
 from . import images
 from . import noise
 from . import raw2hdf5
@@ -374,7 +374,7 @@ def gfitfile(input_dir, output_file, lifetimes, input_spec, output_spec, instr_s
     task_names = sorted(task_names)
     amplitudes = [1 for _ in range(len(lifetimes))]
     outfile = Path(output_file)
-    contents = gfit.global_fit_file(task_names, lifetimes, amplitudes, input_spec, output_spec, instr_spec)
+    contents = ssolve_gfit.global_fit_file(task_names, lifetimes, amplitudes, input_spec, output_spec, instr_spec)
     with outfile.open("w") as file:
         file.write(contents)
     return
