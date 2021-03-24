@@ -206,3 +206,39 @@ def plot_gfit(raw_files, fit_files, spectra_files, output_file):
     contents = "\n".join(chunks)
     with output_file.open("w") as file:
         file.write(contents)
+
+
+def dataset_groups_from_dirs(dirs, labels=None):
+    """Group corresponding datasets from a collection of directories."""
+    if labels:
+        datasets = [
+            [Dataset(f, name=f"{f.stem}_{label}") for f in sorted(d.iterdir()) if f.suffix == ".txt"]
+            for d, label in zip(dirs, labels)
+        ]
+    else:
+        datasets = [
+            [Dataset(f) for f in sorted(d.iterdir()) if f.suffix == ".txt"]
+            for d in dirs
+        ]
+    # Collects the first datasets from each list into a new list, then the second
+    # into a new list, etc.
+    groups = [list(x) for x in zip(*datasets)]
+    return groups
+
+
+def plot_compared(dirs, output_file, labels, options):
+    """Plot directories of files compared against one another."""
+    ds_groups = dataset_groups_from_dirs(dirs, labels=labels)
+    chunks = [style_settings]
+    chunks.extend([
+        load_csv(d) for d in [g for g in chain(*ds_groups)]
+    ])
+    for i, g in enumerate(ds_groups):
+        graphs = [Graph(d.name, d.x(), d.y()) for d in g]
+        page_opts = options
+        page_opts["name"] = f"plot_{i}"
+        page_opts["key"] = True
+        chunks.append(page_with_graphs(graphs, options))
+    contents = "\n".join(chunks)
+    with output_file.open("w") as file:
+        file.write(contents)

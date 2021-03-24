@@ -872,6 +872,31 @@ def plot_gfit(da_dir, spectra_dir, fitted_curves_dir, output_file):
     veusz.plot_gfit(raw_files, curve_files, spectra_files, output_file)
 
 
+@click.command()
+@click.option("-d", "dirs", required=True, multiple=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directories containing the data to compare.")
+@click.option("-l", "labels", multiple=True, type=click.STRING, help="The labels for the data from each directory.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The Veusz file to create.")
+@click.option("--x-lower", type=click.FLOAT, help="A lower bound on the x-axis.")
+@click.option("--x-upper", type=click.FLOAT, help="A upper bound on the x-axis.")
+@click.option("--x-label", type=click.STRING, help="A name for the x-axis.")
+@click.option("--y-label", type=click.STRING, help="A name for the y-axis.")
+def plot_compared(dirs, labels, output_file, x_lower, x_upper, x_label, y_label):
+    """Plot corresponding files from each directory together.
+
+    The files from each directory are sorted and then all of the first files are plotted together,
+    all the second files are plotted together, etc. If no labels are supplied, the filenames will be used as
+    the plot names."""
+    dirs = [Path(d) for d in dirs]
+    output_file = Path(output_file)
+    options = {
+        "x_lower": x_lower,
+        "x_upper": x_upper,
+        "x_label": x_label,
+        "y_label": y_label
+    }
+    veusz.plot_compared(dirs, output_file, labels, options)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -897,3 +922,4 @@ cli.add_command(filter_avg)
 cli.add_command(chi2)
 cli.add_command(plot_dir)
 cli.add_command(plot_gfit)
+cli.add_command(plot_compared)
