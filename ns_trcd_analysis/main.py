@@ -836,6 +836,9 @@ def plot_dir(input_dir, output_file, x_lower, x_upper, x_label, y_label, combine
     """Make plots from the files in a directory.
 
     All of the files must share the same x-axis.
+
+    If you plan to do any operations on the datasets in Veusz, make sure there are no decimal places
+    in the lifetimes. Veusz does not know how to parse expressions with decimal places in dataset names.
     """
     input_dir = Path(input_dir)
     output_file = Path(output_file)
@@ -861,7 +864,10 @@ def plot_dir(input_dir, output_file, x_lower, x_upper, x_label, y_label, combine
 def plot_gfit(da_dir, spectra_dir, fitted_curves_dir, output_file):
     """Assemble the plots from a global fit.
 
-    Compares the raw data to the fits, and plots the spectra together."""
+    Compares the raw data to the fits, and plots the spectra together.
+
+    If you plan to do any operations on the datasets in Veusz, make sure there are no decimal places
+    in the lifetimes. Veusz does not know how to parse expressions with decimal places in dataset names."""
     da_dir = Path(da_dir)
     spectra_dir = Path(spectra_dir)
     fitted_curves_dir = Path(fitted_curves_dir)
@@ -885,7 +891,10 @@ def plot_compared(dirs, labels, output_file, x_lower, x_upper, x_label, y_label)
 
     The files from each directory are sorted and then all of the first files are plotted together,
     all the second files are plotted together, etc. If no labels are supplied, the filenames will be used as
-    the plot names."""
+    the plot names.
+
+    If you plan to do any operations on the datasets in Veusz, make sure there are no decimal places
+    in the lifetimes. Veusz does not know how to parse expressions with decimal places in dataset names."""
     dirs = [Path(d) for d in dirs]
     output_file = Path(output_file)
     options = {
