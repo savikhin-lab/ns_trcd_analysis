@@ -321,14 +321,14 @@ def global_fit(data, ts, fit_after, lfits, bounded_lifetimes):
     return fit_amps, fit_lifetimes
 
 
-def curves_from_fit(amps, lifetimes, ts, fit_after):
+def curves_from_fit(amps, lifetimes, ts):
     """Generate curves from fit parameters.
     """
     n_wls = amps.shape[1]
     fits = np.zeros((len(ts), n_wls))
     for i in range(n_wls):
         exp_args = list(amps[:, i]) + lifetimes
-        fits[ts > fit_after, i] = multi_exp(ts[ts > fit_after], *exp_args)
+        fits[ts > 0, i] = multi_exp(ts[ts > 0], *exp_args)
     return fits
 
 
