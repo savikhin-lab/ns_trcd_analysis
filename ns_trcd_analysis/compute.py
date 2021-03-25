@@ -395,3 +395,26 @@ def save_double_fit_spectra(output_dir, amps, lifetimes, da_wls, cd_wls):
     save_global_fit_spectra(da_dir, da_spectra, da_wls, lifetimes)
     save_global_fit_spectra(cd_dir, cd_spectra, cd_wls, lifetimes)
     return
+
+
+def fixed_lifetime_global_fit(data, ts, fit_after, lfits, lifetimes):
+    """Do a global fit with the lifetimes fixed."""
+    n_lifetimes = len(lifetimes)
+    n_wls = data.shape[1]
+    amp_guesses = np.reshape(lfits, (lfits.size,), order="F")
+    data_for_fit = data[ts > fit_after, :]
+    ts_for_fit = ts[ts > fit_after]
+
+    def compute_residuals(params, *args):
+        fitted = np.empty_like(data_for_fit)
+        amp_arr = amp_arr_from_list(params, n_lifetimes, n_wls)
+        for i in range(n_wls):
+            amps = list(amp_arr[:, i])
+            exp_args = amps + lifetimes
+            fitted[:, i] = multi_exp(ts_for_fit, *exp_args)
+        diff = data_for_fit - fitted
+        return diff.reshape(data_for_fit.shape[0] * data_for_fit.shape[1])
+
+    res = optimize.least_squares(compute_residuals, x0=amp_guesses, method="lm", verbose=2)
+    fit_amps = amp_arr_from_list(list(res.x), n_lifetimes, n_wls)
+    return fit_amps
