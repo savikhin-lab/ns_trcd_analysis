@@ -153,21 +153,11 @@ def plot_combined(output_file, files, opts):
     chunks = [style_settings]
     datasets = [Dataset(f) for f in files]
     chunks.extend([load_csv(d) for d in datasets])
-    chunks.append(page_with_combined_plot(datasets, opts))
+    graphs = [Graph(d.name, d.x(), d.y()) for d in datasets]
+    chunks.append(page_with_graphs(graphs, opts))
     contents = "\n".join(chunks)
     with output_file.open("w") as f:
         f.write(contents)
-
-
-def page_with_combined_plot(datasets, opts) -> str:
-    """Generates the string for a page with multiple items on one plot."""
-    chunks = [Page(**opts).render()]
-    for d in datasets:
-        graph = Graph(d.name, d.x(), d.y())
-        chunks.append(graph.render())
-    chunks.append("To('..')")
-    chunks.append("To('..')")
-    return "\n".join(chunks)
 
 
 def page_with_graphs(graphs, opts) -> str:
