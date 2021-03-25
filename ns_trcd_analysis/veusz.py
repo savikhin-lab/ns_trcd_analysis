@@ -189,9 +189,11 @@ def plot_gfit(raw_files, fit_files, spectra_files, output_file):
         "x_label": "Wavelength (nm)",
         "x_lower": 780,
         "x_upper": 850,
-        "name": "spectra"
+        "name": "spectra",
+        "key": True,
     }
-    chunks.append(page_with_combined_plot(spectra_datasets, spectra_page_opts))
+    spectra_graphs = [Graph(d.name, d.x(), d.y(), thickness=1) for d in spectra_datasets]
+    chunks.append(page_with_graphs(spectra_graphs, spectra_page_opts))
     curve_opts = {
         "x_label": "Time (us)",
         "x_lower": -10,
