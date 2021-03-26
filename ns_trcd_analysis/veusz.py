@@ -1,3 +1,4 @@
+import os
 from itertools import chain
 
 
@@ -123,13 +124,21 @@ class Graph:
 def load_csv(ds) -> str:
     """The statement that imports a CSV file into Veusz.
     """
-    return f"ImportFileCSV(u'{ds.path.resolve()}', linked=True, dsprefix=u'{ds.name}_')"
+    if os.name == "nt":
+        fpath = str(ds.path.resolve()).replace('\\', '\\\\')
+    else:
+        fpath = str(ds.path.resolve())
+    return f"ImportFileCSV(u'{fpath}', linked=True, dsprefix=u'{ds.name}_')"
 
 
 def load_npy(ds) -> str:
     """The statement that imports a NumPy NPY file into Veusz.
     """
-    return f"ImportFilePlugin(u'Numpy NPY import', u'{ds.path.resolve()}', linked=True, name=u'{ds.name}')"
+    if os.name == "nt":
+        fpath = str(ds.path.resolve()).replace('\\', '\\\\')
+    else:
+        fpath = str(ds.path.resolve())
+    return f"ImportFilePlugin(u'Numpy NPY import', u'{fpath}', linked=True, name=u'{ds.name}')"
 
 
 def plot_separate(output_file, files, opts):
