@@ -8,11 +8,12 @@ from scipy.signal import savgol_filter
 from . import core
 from . import compute
 from . import extract
-from . import gfit
+from . import ssolve_gfit
 from . import images
 from . import noise
 from . import raw2hdf5
 from . import slices
+from . import veusz
 from .core import Channels, valid_channel, load_dir_into_arr
 
 
@@ -280,7 +281,7 @@ def average(input_file, fig, txt):
 @click.command()
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD data to subtract oscillations from.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory to store the oscillation-free data in.")
-@click.option("-a", "--after", default=1, type=click.FLOAT, help="Only fit the oscillations after this time.")
+@click.option("-a", "--after", default=1, show_default=True, type=click.FLOAT, help="Only fit the oscillations after this time.")
 @click.option("-w", "--subtract-whole-curve", "whole_curve", is_flag=True, help="Subtract the whole oscillation curve after fitting the oscillations. The default behavior (without this flag) is to only subtract the oscillations after the time specified by the '-a' flag.")
 def rmosc(input_dir, output_dir, after, whole_curve):
     """Remove oscillations from averaged dCD data.
@@ -322,7 +323,7 @@ def rmosc(input_dir, output_dir, after, whole_curve):
 
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to read from.")
-@click.option("-p", "--points", default=1500, help="The number of points to use to calculate the offset (taken from the beginning of the curve.")
+@click.option("-p", "--points", default=1500, show_default=True, help="The number of points to use to calculate the offset (taken from the beginning of the curve.")
 @click.option("--each", is_flag=True, help="Remove the offset of each dA or dCD shot.")
 @click.option("--average", is_flag=True, help="Remove the offset of the averaged dA or dCD data.")
 @click.option("--osc-free", is_flag=True, help="Remove the offset of the oscillation-free dA or dCD data.")
@@ -373,7 +374,7 @@ def gfitfile(input_dir, output_file, lifetimes, input_spec, output_spec, instr_s
     task_names = sorted(task_names)
     amplitudes = [1 for _ in range(len(lifetimes))]
     outfile = Path(output_file)
-    contents = gfit.global_fit_file(task_names, lifetimes, amplitudes, input_spec, output_spec, instr_spec)
+    contents = ssolve_gfit.global_fit_file(task_names, lifetimes, amplitudes, input_spec, output_spec, instr_spec)
     with outfile.open("w") as file:
         file.write(contents)
     return
@@ -644,7 +645,7 @@ def absslice(input_file, figpath, txtpath, stime, sindex, wavelength):
 @click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to perform noise rejection on.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the list of rejected shots in.")
-@click.option("-s", "--scale", default=2.0, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
+@click.option("-s", "--scale", default=2.0, show_default=True, type=click.FLOAT, help="The number of std. devs. to use as a threshold for noise rejection.")
 def sigma_filter(data_file, filter_file, scale):
     """Reject shots based on whether their noise is within a certain number of standard deviations of the mean.
     """
@@ -667,7 +668,7 @@ def sigma_filter(data_file, filter_file, scale):
 @click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
 @click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
 @click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
-@click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
+@click.option("-a", "--fit-after", default=0, show_default=True, type=click.FLOAT, help="Only fit data after a certain time (useful to avoid pump spike).")
 def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifetimes, fit_after):
     """Do a global fit with the provided lifetimes.
     """
@@ -679,11 +680,11 @@ def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifeti
     wls = [int(f.stem) for f in sorted(input_dir.iterdir()) if f.suffix == ".txt"]
     lfit_amps = compute.lfits_for_gfit(data, ts, fit_after, bounded_lifetimes)
     if save_lfit_curves:
-        fitted = compute.curves_from_fit(lfit_amps, [b.lifetime for b in bounded_lifetimes], ts, fit_after)
+        fitted = compute.curves_from_fit(lfit_amps, [b.lifetime for b in bounded_lifetimes], ts)
         compute.save_fitted_curves(output_dir / "lfit_curves", fitted, ts, wls)
     gfit_amps, gfit_lifetimes = compute.global_fit(data, ts, fit_after, lfit_amps, bounded_lifetimes)
     if save_gfit_curves:
-        fitted = compute.curves_from_fit(gfit_amps, gfit_lifetimes, ts, fit_after)
+        fitted = compute.curves_from_fit(gfit_amps, gfit_lifetimes, ts)
         compute.save_fitted_curves(output_dir / "gfit_curves", fitted, ts, wls)
     compute.save_global_fit_spectra(output_dir, gfit_amps, wls, gfit_lifetimes)
     return
@@ -693,7 +694,7 @@ def global_fit(input_dir, output_dir, save_gfit_curves, save_lfit_curves, lifeti
 @click.option("-d", "--da-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dA files to fit.")
 @click.option("-c", "--cd-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD files to fit.")
 @click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the fit results.")
-@click.option("-a", "--fit-after", default=0, type=click.FLOAT, help="Only fit data after this time (useful to avoid fitting scattered pump light).")
+@click.option("-a", "--fit-after", default=0, show_default=True, type=click.FLOAT, help="Only fit data after this time (useful to avoid fitting scattered pump light).")
 @click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
 @click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
 @click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
@@ -711,14 +712,52 @@ def double_fit(da_dir, cd_dir, output_dir, fit_after, lifetimes, save_gfit_curve
     cd_wls = [int(f.stem) for f in sorted(cd_dir.iterdir()) if f.suffix == ".txt"]
     combined_data = np.hstack((da_data, cd_data))
     lfit_amps = compute.lfits_for_gfit(combined_data, ts, fit_after, bounded_lifetimes)
-    if save_lfit_curves:
-        lfit_curves = compute.curves_from_fit(lfit_amps, [b.lifetime for b in bounded_lifetimes], ts, fit_after)
-        compute.save_double_lfits(output_dir, lfit_curves, ts, da_wls, cd_wls)
     gfit_amps, gfit_lifetimes = compute.global_fit(combined_data, ts, fit_after, lfit_amps, bounded_lifetimes)
+    if save_lfit_curves:
+        lfit_curves = compute.curves_from_fit(lfit_amps, [b.lifetime for b in bounded_lifetimes], ts)
+        compute.save_double_lfits(output_dir, lfit_curves, ts, da_wls, cd_wls)
     if save_gfit_curves:
-        gfit_curves = compute.curves_from_fit(gfit_amps, gfit_lifetimes, ts, fit_after)
+        gfit_curves = compute.curves_from_fit(gfit_amps, gfit_lifetimes, ts)
         compute.save_double_gfits(output_dir, gfit_curves, ts, da_wls, cd_wls)
     compute.save_double_fit_spectra(output_dir, gfit_amps, gfit_lifetimes, da_wls, cd_wls)
+
+
+@click.command()
+@click.option("-d", "--da-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dA files to fit.")
+@click.option("-c", "--cd-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dCD files to fit.")
+@click.option("-o", "--output-dir", required=True, type=click.Path(file_okay=False, dir_okay=True), help="The directory in which to store the fit results.")
+@click.option("-a", "--fit-after", default=0, show_default=True, type=click.FLOAT, help="Only fit data after this time (useful to avoid fitting scattered pump light).")
+@click.option("-l", "--lifetime", "lifetimes", multiple=True, required=True, type=(click.FLOAT, click.FLOAT, click.FLOAT), help="A lifetime and the bounds within which it can vary entered as 'lower_bound, lifetime, upper_bound'. Pass one of these flags for each lifetime.")
+@click.option("--save-gfit-curves", is_flag=True, help="Save the fitted curves from the global fit.")
+@click.option("--save-lfit-curves", is_flag=True, help="Save the fitted curves from the initial local fit.")
+def fixed_double_fit(da_dir, cd_dir, output_dir, fit_after, lifetimes, save_gfit_curves, save_lfit_curves):
+    """Do a global fit of dA and dCD where the lifetimes come from just the dA data.
+    """
+    da_dir = Path(da_dir)
+    cd_dir = Path(cd_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True)
+    bounded_lifetimes = compute.bounded_lifetimes_from_args(lifetimes)
+    da_data, ts = load_dir_into_arr(da_dir)
+    da_wls = [int(f.stem) for f in sorted(da_dir.iterdir()) if f.suffix == ".txt"]
+    cd_data, _ = load_dir_into_arr(cd_dir)
+    cd_wls = [int(f.stem) for f in sorted(cd_dir.iterdir()) if f.suffix == ".txt"]
+    da_lfit_amps = compute.lfits_for_gfit(da_data, ts, fit_after, bounded_lifetimes)
+    cd_lfit_amps = compute.lfits_for_gfit(cd_data, ts, fit_after, bounded_lifetimes)
+    da_gfit_amps, gfit_lifetimes = compute.global_fit(da_data, ts, fit_after, da_lfit_amps, bounded_lifetimes)
+    cd_gfit_amps = compute.fixed_lifetime_global_fit(cd_data, ts, fit_after, cd_lfit_amps, gfit_lifetimes)
+    compute.save_global_fit_spectra(output_dir / "da_spectra", da_gfit_amps, da_wls, gfit_lifetimes)
+    compute.save_global_fit_spectra(output_dir / "cd_spectra", cd_gfit_amps, cd_wls, gfit_lifetimes)
+    if save_lfit_curves:
+        da_curves = compute.curves_from_fit(da_lfit_amps, gfit_lifetimes, ts)
+        cd_curves = compute.curves_from_fit(cd_lfit_amps, gfit_lifetimes, ts)
+        compute.save_fitted_curves(output_dir / "da_lfit_curves", da_curves, ts, da_wls)
+        compute.save_fitted_curves(output_dir / "cd_lfit_curves", cd_curves, ts, cd_wls)
+    if save_gfit_curves:
+        da_curves = compute.curves_from_fit(da_gfit_amps, gfit_lifetimes, ts)
+        cd_curves = compute.curves_from_fit(cd_gfit_amps, gfit_lifetimes, ts)
+        compute.save_fitted_curves(output_dir / "da_gfit_curves", da_curves, ts, da_wls)
+        compute.save_fitted_curves(output_dir / "cd_gfit_curves", cd_curves, ts, cd_wls)
 
 
 @click.command()
@@ -742,9 +781,9 @@ def txtdir2npy(input_dir, output_file):
 @click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
-@click.option("-s", "--scale", default=1.25, type=click.FLOAT, help="The filter cutoff in terms of the mean of the integral of the band between the upper and lower frequencies.")
-@click.option("--f-upper", default=0.8, type=click.FLOAT, help="The upper cutoff frequency in MHz.")
-@click.option("--f-lower", default=0.2, type=click.FLOAT, help="The lower cutoff frequency in MHz.")
+@click.option("-s", "--scale", default=1.25, show_default=True, type=click.FLOAT, help="The filter cutoff in terms of the mean of the integral of the band between the upper and lower frequencies.")
+@click.option("--f-upper", default=0.8, show_default=True, type=click.FLOAT, help="The upper cutoff frequency in MHz.")
+@click.option("--f-lower", default=0.2, show_default=True, type=click.FLOAT, help="The lower cutoff frequency in MHz.")
 def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
     """Produce a list of shots to filter based on the noise between an upper and lower frequency.
 
@@ -772,9 +811,9 @@ def fft_filter(data_file, filter_file, scale, f_upper, f_lower):
 @click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
-@click.option("-s", "--scale", default=0.5, type=click.FLOAT, help="Shots whose integral is below 'scale * mean' will be filtered.")
-@click.option("--start", default=0.1, type=click.FLOAT, help="The start time for the integral.")
-@click.option("--stop", default=50, type=click.FLOAT, help="The stop time for the integral.")
+@click.option("-s", "--scale", default=0.5, show_default=True, type=click.FLOAT, help="Shots whose integral is below 'scale * mean' will be filtered.")
+@click.option("--start", default=0.1, show_default=True, type=click.FLOAT, help="The start time for the integral.")
+@click.option("--stop", default=50, show_default=True, type=click.FLOAT, help="The stop time for the integral.")
 def int_filter(data_file, filter_file, scale, start, stop):
     """Produce a list of shots to filter based on their integral between a start and stop time.
     """
@@ -809,7 +848,7 @@ def filter_avg(data_file, filter_file, output_file):
 @click.command()
 @click.option("-r", "--raw-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of dA or dCD that were fit.")
 @click.option("-f", "--fit-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory of fitted curves.")
-@click.option("-a", "--after", default=0.1, type=click.FLOAT, help="Only compare fits after a certain time.")
+@click.option("-a", "--after", default=0.1, show_default=True, type=click.FLOAT, help="Only compare fits after a certain time.")
 def chi2(raw_dir, fit_dir, after):
     """Calculate the chi2 of a global fit.
     """
@@ -821,6 +860,88 @@ def chi2(raw_dir, fit_dir, after):
     points = raw_data[t > after, :].shape[0] * raw_data.shape[1]
     norm = np.linalg.norm(diffs) / points
     click.echo(f"Chi2: {norm:.2e}")
+
+
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing files to fit.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The Veusz file to create.")
+@click.option("--x-lower", type=click.FLOAT, help="A lower bound on the x-axis.")
+@click.option("--x-upper", type=click.FLOAT, help="A upper bound on the x-axis.")
+@click.option("--x-label", type=click.STRING, help="A name for the x-axis.")
+@click.option("--y-label", type=click.STRING, help="A name for the y-axis.")
+@click.option("--combined", is_flag=True, help="Put all the data on a single graph.")
+def plot_dir(input_dir, output_file, x_lower, x_upper, x_label, y_label, combined):
+    """Make plots from the files in a directory.
+
+    All of the files must share the same x-axis.
+
+    If you plan to do any operations on the datasets in Veusz, make sure there are no decimal places
+    in the lifetimes. Veusz does not know how to parse expressions with decimal places in dataset names.
+    """
+    input_dir = Path(input_dir)
+    output_file = Path(output_file)
+    files = sorted([f for f in input_dir.iterdir() if f.suffix == ".txt"])
+    options = {
+        "x_lower": x_lower,
+        "x_upper": x_upper,
+        "x_label": x_label,
+        "y_label": y_label
+    }
+    if combined:
+        options["key"] = True
+        veusz.plot_combined(output_file, files, options)
+    else:
+        veusz.plot_separate(output_file, files, options)
+
+
+@click.command()
+@click.option("-d", "--da-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the dA data used in the fit.")
+@click.option("-s", "--spectra-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the spectra from the fit.")
+@click.option("-f", "--fitted-curves-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the global fit curves from the fit.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The Veusz file to create.")
+def plot_gfit(da_dir, spectra_dir, fitted_curves_dir, output_file):
+    """Assemble the plots from a global fit.
+
+    Compares the raw data to the fits, and plots the spectra together.
+
+    If you plan to do any operations on the datasets in Veusz, make sure there are no decimal places
+    in the lifetimes. Veusz does not know how to parse expressions with decimal places in dataset names."""
+    da_dir = Path(da_dir)
+    spectra_dir = Path(spectra_dir)
+    fitted_curves_dir = Path(fitted_curves_dir)
+    output_file = Path(output_file)
+    raw_files = sorted([f for f in da_dir.iterdir() if f.suffix == ".txt"])
+    curve_files = sorted([f for f in fitted_curves_dir.iterdir() if f.suffix == ".txt"])
+    spectra_files = sorted([f for f in spectra_dir.iterdir() if f.suffix == ".txt"])
+    veusz.plot_gfit(raw_files, curve_files, spectra_files, output_file)
+
+
+@click.command()
+@click.option("-d", "dirs", required=True, multiple=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directories containing the data to compare.")
+@click.option("-l", "labels", multiple=True, type=click.STRING, help="The labels for the data from each directory.")
+@click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The Veusz file to create.")
+@click.option("--x-lower", type=click.FLOAT, help="A lower bound on the x-axis.")
+@click.option("--x-upper", type=click.FLOAT, help="A upper bound on the x-axis.")
+@click.option("--x-label", type=click.STRING, help="A name for the x-axis.")
+@click.option("--y-label", type=click.STRING, help="A name for the y-axis.")
+def plot_compared(dirs, labels, output_file, x_lower, x_upper, x_label, y_label):
+    """Plot corresponding files from each directory together.
+
+    The files from each directory are sorted and then all of the first files are plotted together,
+    all the second files are plotted together, etc. If no labels are supplied, the filenames will be used as
+    the plot names.
+
+    If you plan to do any operations on the datasets in Veusz, make sure there are no decimal places
+    in the lifetimes. Veusz does not know how to parse expressions with decimal places in dataset names."""
+    dirs = [Path(d) for d in dirs]
+    output_file = Path(output_file)
+    options = {
+        "x_lower": x_lower,
+        "x_upper": x_upper,
+        "x_label": x_label,
+        "y_label": y_label
+    }
+    veusz.plot_compared(dirs, output_file, labels, options)
 
 
 cli.add_command(assemble)
@@ -840,9 +961,13 @@ cli.add_command(tshift)
 cli.add_command(collapse)
 cli.add_command(global_fit)
 cli.add_command(double_fit)
+cli.add_command(fixed_double_fit)
 cli.add_command(txtdir2npy)
 cli.add_command(fft_filter)
 cli.add_command(sigma_filter)
 cli.add_command(int_filter)
 cli.add_command(filter_avg)
 cli.add_command(chi2)
+cli.add_command(plot_dir)
+cli.add_command(plot_gfit)
+cli.add_command(plot_compared)
