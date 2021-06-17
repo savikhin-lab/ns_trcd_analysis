@@ -944,6 +944,25 @@ def plot_compared(dirs, labels, output_file, x_lower, x_upper, x_label, y_label)
     veusz.plot_compared(dirs, output_file, labels, options)
 
 
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to add to the filter.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("--index", required=True, type=click.INT, help="The wavelength index to add the shots to.")
+def add_to_filter(input_dir, filter_file, index):
+    """Add files in the target directory to the filter file.
+
+    The names of files are used as the shot numbers (minus one to make them zero-indexed).
+    """
+    input_dir = Path(input_dir)
+    filter_file = Path(filter_file)
+    old_filtered = noise.load_filter_list(filter_file)
+    shots = sorted([int(f.stem) - 1 for f in input_dir.iterdir() if f.suffix == ".png"])
+    tmp_filtered = {index: shots}
+    new_filtered = noise.merge_filter_lists(old_filtered, tmp_filtered)
+    with filter_file.open("w") as f:
+        json.dump(new_filtered, f)
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -971,3 +990,4 @@ cli.add_command(chi2)
 cli.add_command(plot_dir)
 cli.add_command(plot_gfit)
 cli.add_command(plot_compared)
+cli.add_command(add_to_filter)
