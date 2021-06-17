@@ -46,10 +46,9 @@ def ingest(input_dir, output_file_path, dark_signals_file=None) -> None:
                 tmp_arr[:, 1, shot_index - 1, wl_index, 0] = np.load(datadir / "perp.npy")
                 tmp_arr[:, 2, shot_index - 1, wl_index, 0] = np.load(datadir / "ref.npy")
         if dark_signals_file is not None:
-            for shot in range(num_shots):
-                for wl in range(len(wls)):
-                    for chan in range(3):
-                        tmp_arr[:, chan, shot, wl] -= dark_sigs[shot, wl, chan]
+            cleaned_ds = compute_cleaned_dark_sig(dark_sigs)
+            for i in range(3):
+                tmp_arr[:, i, :, :] -= cleaned_ds[i]
         data.write_direct(tmp_arr, np.s_[:, :, :, :, :], np.s_[:, :, :, :, :])
 
 
@@ -64,3 +63,15 @@ def collect_wavelengths(path) -> List[int]:
             continue
         wls.append(int(d.name))
     return sorted(wls)
+
+
+def compute_cleaned_dark_sig(ds):
+    real_dark_sigs = list()
+    for i in range(3):
+        shots, wls = ds[:, :, i].shape
+        measurements = ds[:, :, i].reshape(shots * wls)
+        avg = measurements.mean()
+        std = measurements.std()
+        fixed_avg = np.mean(measurements[np.abs(measurements - avg) < std])
+        real_dark_sigs.append(fixed_avg)
+    return real_dark_sigs
