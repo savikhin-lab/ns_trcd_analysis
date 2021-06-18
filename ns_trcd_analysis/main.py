@@ -976,11 +976,12 @@ def filter_from_fits(data_file, filter_file, fit_dir, scale):
         data = np.empty_like(infile["data"])
         infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
     fits, t = core.load_dir_into_arr(fit_dir)
-    old_filtered = noise.load_filter_list(filter_file)
-    tmp_filtered = noise.filter_from_fits(data, fits, t, scale)
-    new_filtered = noise.merge_filter_lists(old_filtered, tmp_filtered)
+    filtered = noise.filter_from_fits(data, fits, t, scale)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
     with filter_file.open("w") as f:
-        json.dump(new_filtered, f)
+        json.dump(filtered, f)
 
 cli.add_command(assemble)
 cli.add_command(da)

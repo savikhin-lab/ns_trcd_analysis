@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ns_trcd_analysis"
-version = "0.23.0"
+version = "0.24.0"
 description = ""
 authors = ["Zach Mitchell <zmitchell@fastmail.com>"]
 
