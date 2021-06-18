@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import json
+from scipy.interpolate import interp1d
 from .core import POINTS, time_axis
 
 
@@ -106,3 +107,36 @@ def merge_filter_lists(a, b):
         else:
             out[i] = y
     return out
+
+
+def filter_from_fits(da, fits, collapsed_t, scale):
+    """Use the global fits to determine the noise in individual curves for rejection.
+    """
+    points, shots, n_wls = da.shape
+    rejections = dict()
+    # The time axis is often shifted during processing (by just a point or two),
+    # so we want to interpolate with the shifted time axis rather than the default
+    # time axis.
+    shifted_t = time_axis()
+    shifted_t += collapsed_t[0] - shifted_t[0]
+    # The collapsed time doesn't extend all the way to the end of the time interval
+    # (since those last few points were collapsed), so we can't interpolate all the
+    # way to the end of the uncollapsed time axis. We need to cut the last few time
+    # points from the generated time axis.
+    limited_t = shifted_t[shifted_t < collapsed_t[-1]]
+    last_t = shifted_t[shifted_t < collapsed_t[-1]].shape[0]
+    for wl_index in range(n_wls):
+        interpolator = interp1d(collapsed_t, fits[:, wl_index])
+        da_interp_1d = interpolator(limited_t)
+        da_interp = np.empty_like(da[:last_t, :, wl_index])
+        for i in range(n_wls):
+            da_interp[:, i] = da_interp_1d
+        stds = np.std(da[:last_t, :, wl_index] - da_interp, axis=0)
+        stds_std = stds.std()
+        stds_mean = stds.mean()
+        wl_rejections = list()
+        for shot_index in range(shots):
+            if stds[shot_index] > (scale * stds_std + stds_mean):
+                wl_rejections.append(shot_index)
+        rejections[wl_index] = wl_rejections
+    return rejections

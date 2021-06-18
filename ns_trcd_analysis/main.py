@@ -963,6 +963,25 @@ def add_to_filter(input_dir, filter_file, index):
         json.dump(new_filtered, f)
 
 
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file containing the dA or dCD data to be filtered.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("--fit-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the global fits.")
+@click.option("-s", "--scale", default=1.0, type=click.FLOAT, help="The number of standard deviations that act as the threshold for filtering.")
+def filter_from_fits(data_file, filter_file, fit_dir, scale):
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    fit_dir = Path(fit_dir)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    fits, t = core.load_dir_into_arr(fit_dir)
+    old_filtered = noise.load_filter_list(filter_file)
+    tmp_filtered = noise.filter_from_fits(data, fits, t, scale)
+    new_filtered = noise.merge_filter_lists(old_filtered, tmp_filtered)
+    with filter_file.open("w") as f:
+        json.dump(new_filtered, f)
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -991,3 +1010,4 @@ cli.add_command(plot_dir)
 cli.add_command(plot_gfit)
 cli.add_command(plot_compared)
 cli.add_command(add_to_filter)
+cli.add_command(filter_from_fits)
