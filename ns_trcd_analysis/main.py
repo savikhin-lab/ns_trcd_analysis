@@ -1,6 +1,7 @@
 import click
 import h5py
 import numpy as np
+import csv
 import json
 from pathlib import Path
 from scipy.optimize import minimize_scalar
@@ -983,6 +984,45 @@ def filter_from_fits(data_file, filter_file, fit_dir, scale):
     with filter_file.open("w") as f:
         json.dump(filtered, f)
 
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The absorption spectrometer file to process.")
+def clean_abs(input_file):
+    input_file = Path(input_file)
+    with input_file.open("r") as infile:
+        reader = csv.reader(infile, delimiter=",")
+        wls = []
+        abs_data = []
+        for i, row in enumerate(reader):
+            if i in [0, 1]:
+                continue
+            try:
+                wls.append(int(row[0]))
+                abs_data.append(float(row[1]))
+            except (ValueError, IndexError):
+                break
+        wls = reversed(wls)
+        baseline = np.mean(abs_data[:15])
+        abs_data = reversed(abs_data)
+        abs_data = [x - baseline for x in abs_data]
+    with input_file.open("w", newline="\n") as outfile:
+        writer = csv.writer(outfile)
+        for w, a in zip(wls, abs_data):
+            writer.writerow([w, a])
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscilloscope output file to process.")
+def clean_scope(input_file):
+    input_file = Path(input_file)
+    rows = []
+    with input_file.open("r") as infile:
+        for row in csv.reader(infile, delimiter=","):
+            rows.append(f"{row[3]},{row[4].strip()}")
+    with input_file.open("w") as outfile:
+        outfile.write("\n".join(rows))
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -1012,3 +1052,5 @@ cli.add_command(plot_gfit)
 cli.add_command(plot_compared)
 cli.add_command(add_to_filter)
 cli.add_command(filter_from_fits)
+cli.add_command(clean_abs)
+cli.add_command(clean_scope)
