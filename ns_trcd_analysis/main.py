@@ -30,7 +30,10 @@ def cli():
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the raw experiment data files.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the assembled experiment data.")
 @click.option("-d", "--dark-signals", "dark_signals_file", default=None, type=click.Path(file_okay=True, dir_okay=False, exists=True), help="The file that contains the dark signals for each shot.")
-def assemble(input_dir, output_file, dark_signals_file):
+@click.option("--dark-par", default=None, type=click.FLOAT, help="The dark signal for the parallel channel.")
+@click.option("--dark-perp", default=None, type=click.FLOAT, help="The dark signal for the perpendicular channel.")
+@click.option("--dark-ref", default=None, type=click.FLOAT, help="The dark signal for the reference channel.")
+def assemble(input_dir, output_file, dark_signals_file, dark_par, dark_perp, dark_ref):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -48,9 +51,17 @@ def assemble(input_dir, output_file, dark_signals_file):
     """
     in_dir = Path(input_dir)
     outfile = Path(output_file)
-    if dark_signals_file is not None:
+    if dark_signals_file:
         dark_signals_file = Path(dark_signals_file)
-    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=dark_signals_file)
+    dark_channels_count = sum([x is not None for x in (dark_par, dark_perp, dark_ref)])
+    if dark_channels_count not in [0, 3]:
+        click.echo("An incomplete set of dark signals was supplied.", err=True)
+        return
+    if dark_signals_file and (dark_channels_count == 3):
+        click.echo("Please only supply a dark signals file or dark signals for each channel.", err=True)
+        return
+    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=dark_signals_file,
+                    dark_par=dark_par, dark_perp=dark_perp, dark_ref=dark_ref)
 
 
 @click.command()
