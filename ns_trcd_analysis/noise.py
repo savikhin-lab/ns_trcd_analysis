@@ -70,7 +70,6 @@ def selective_average(infile, outfile, rejections):
         average[:, wl_idx] *= scale_factor
     with h5py.File(outfile, "w") as outfile:
         outfile.copy(infile["wavelengths"], "wavelengths")
-        outfile.create_dataset("data", data=data)
         outfile.create_dataset("average", data=average)
     return
 
