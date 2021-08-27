@@ -15,7 +15,7 @@ def dump_raw_images(path, channel, arr, wl_idx, pump_idx) -> None:
         path.mkdir()
     with click.progressbar(range(num_shots), label="Generating images") as shots:
         for shot_num in shots:
-            outfile = path / f"{shot_num+1:03d}.png"
+            outfile = path / f"{shot_num:03d}.png"
             core.save_fig(ts, arr[:, channel.value, shot_num, wl_idx, pump_idx], outfile)
     return
 
@@ -33,6 +33,6 @@ def dump_da_images(path, arr, wl_idx) -> None:
         path.mkdir()
     with click.progressbar(range(num_shots), label="Generating images") as shots:
         for shot_num in shots:
-            outfile = path / f"{shot_num+1:03d}.png"
+            outfile = path / f"{shot_num:03d}.png"
             core.save_fig(ts, arr[:, shot_num, wl_idx], outfile)
     return

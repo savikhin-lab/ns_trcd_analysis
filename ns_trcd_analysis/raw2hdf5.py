@@ -6,7 +6,7 @@ from typing import List
 from .core import count_subdirs
 
 
-def ingest(input_dir, output_file_path, dark_signals_file=None) -> None:
+def ingest(input_dir, output_file_path, dark_signals_file=None, dark_par=None, dark_perp=None, dark_ref=None) -> None:
     """Read the contents of an experiment directory into an HDF5 file.
 
     If 'incremental' is True, then each shot will be written to the HDF5 file
@@ -31,8 +31,10 @@ def ingest(input_dir, output_file_path, dark_signals_file=None) -> None:
     """
     num_shots = count_subdirs(input_dir)
     wls = collect_wavelengths(input_dir / "0001")
+    dark_sigs = None
     if dark_signals_file is not None:
         dark_sigs = np.load(dark_signals_file)
+        dark_sigs = compute_cleaned_dark_sig(dark_sigs)
     with h5py.File(output_file_path, "w") as outfile:
         tmp_arr = np.empty((20_000, 3, num_shots, len(wls), 1))
         outfile.create_dataset("data", (20_000, 3, num_shots, len(wls), 1))
@@ -45,11 +47,14 @@ def ingest(input_dir, output_file_path, dark_signals_file=None) -> None:
                 tmp_arr[:, 0, shot_index - 1, wl_index, 0] = np.load(datadir / "par.npy")
                 tmp_arr[:, 1, shot_index - 1, wl_index, 0] = np.load(datadir / "perp.npy")
                 tmp_arr[:, 2, shot_index - 1, wl_index, 0] = np.load(datadir / "ref.npy")
-        if dark_signals_file is not None:
-            for shot in range(num_shots):
-                for wl in range(len(wls)):
-                    for chan in range(3):
-                        tmp_arr[:, chan, shot, wl] -= dark_sigs[shot, wl, chan]
+        if dark_signals_file:
+            for i in range(3):
+                tmp_arr[:, i, :, :] -= dark_sigs[i]
+        elif dark_par:
+            # One value per channel was supplied
+            tmp_arr[:, 0, :, :, :] -= dark_par
+            tmp_arr[:, 1, :, :, :] -= dark_perp
+            tmp_arr[:, 2, :, :, :] -= dark_ref
         data.write_direct(tmp_arr, np.s_[:, :, :, :, :], np.s_[:, :, :, :, :])
 
 
@@ -64,3 +69,15 @@ def collect_wavelengths(path) -> List[int]:
             continue
         wls.append(int(d.name))
     return sorted(wls)
+
+
+def compute_cleaned_dark_sig(ds):
+    real_dark_sigs = list()
+    for i in range(3):
+        shots, wls = ds[:, :, i].shape
+        measurements = ds[:, :, i].reshape(shots * wls)
+        avg = measurements.mean()
+        std = measurements.std()
+        fixed_avg = np.mean(measurements[np.abs(measurements - avg) < std])
+        real_dark_sigs.append(fixed_avg)
+    return real_dark_sigs

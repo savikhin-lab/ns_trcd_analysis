@@ -264,7 +264,12 @@ def lfits_for_gfit(data, ts, fit_after_time, bounded_lifetimes):
     fit_bounds = (lower, upper)
     for i in range(n_wls):
         ys = data[:, i]
-        res, _ = optimize.curve_fit(multi_exp, ts[ts > fit_after_time], ys[ts > fit_after_time], p0=guesses, bounds=fit_bounds)
+        res, _ = optimize.curve_fit(
+            multi_exp,
+            ts[ts > fit_after_time],
+            ys[ts > fit_after_time],
+            p0=guesses,
+            bounds=fit_bounds)
         amplitudes = res[:n_lifetimes]
         lfit_params[:, i] = np.asarray(amplitudes)
     return lfit_params

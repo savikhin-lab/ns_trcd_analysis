@@ -1,6 +1,7 @@
 import click
 import h5py
 import numpy as np
+import csv
 import json
 from pathlib import Path
 from scipy.optimize import minimize_scalar
@@ -29,7 +30,10 @@ def cli():
 @click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the raw experiment data files.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file path at which to store the assembled experiment data.")
 @click.option("-d", "--dark-signals", "dark_signals_file", default=None, type=click.Path(file_okay=True, dir_okay=False, exists=True), help="The file that contains the dark signals for each shot.")
-def assemble(input_dir, output_file, dark_signals_file):
+@click.option("--dark-par", default=None, type=click.FLOAT, help="The dark signal for the parallel channel.")
+@click.option("--dark-perp", default=None, type=click.FLOAT, help="The dark signal for the perpendicular channel.")
+@click.option("--dark-ref", default=None, type=click.FLOAT, help="The dark signal for the reference channel.")
+def assemble(input_dir, output_file, dark_signals_file, dark_par, dark_perp, dark_ref):
     """Read a directory of experiment data into an HDF5 file.
 
     \b
@@ -47,9 +51,17 @@ def assemble(input_dir, output_file, dark_signals_file):
     """
     in_dir = Path(input_dir)
     outfile = Path(output_file)
-    if dark_signals_file is not None:
+    if dark_signals_file:
         dark_signals_file = Path(dark_signals_file)
-    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=dark_signals_file)
+    dark_channels_count = sum([x is not None for x in (dark_par, dark_perp, dark_ref)])
+    if dark_channels_count not in [0, 3]:
+        click.echo("An incomplete set of dark signals was supplied.", err=True)
+        return
+    if dark_signals_file and (dark_channels_count == 3):
+        click.echo("Please only supply a dark signals file or dark signals for each channel.", err=True)
+        return
+    raw2hdf5.ingest(in_dir, outfile, dark_signals_file=dark_signals_file,
+                    dark_par=dark_par, dark_perp=dark_perp, dark_ref=dark_ref)
 
 
 @click.command()
@@ -831,6 +843,25 @@ def int_filter(data_file, filter_file, scale, start, stop):
 
 
 @click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("-t", "--threshold", default=1e-5, type=click.FLOAT, help="The threshold for when to stop throwing away bad shots.")
+def incremental_filter(data_file, filter_file, threshold):
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    if filter_file.exists():
+        filtered = noise.load_filter_list(filter_file)
+    else:
+        filtered = {x: [] for x in range(data.shape[2])}
+    filtered = noise.incremental_filter(data, filtered, threshold)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
+@click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the shots to exclude from the average.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected average in.")
@@ -944,6 +975,84 @@ def plot_compared(dirs, labels, output_file, x_lower, x_upper, x_label, y_label)
     veusz.plot_compared(dirs, output_file, labels, options)
 
 
+@click.command()
+@click.option("-i", "--input-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the files to add to the filter.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("--index", required=True, type=click.INT, help="The wavelength index to add the shots to.")
+def add_to_filter(input_dir, filter_file, index):
+    """Add files in the target directory to the filter file.
+
+    The names of files are used as the shot numbers (minus one to make them zero-indexed).
+    """
+    input_dir = Path(input_dir)
+    filter_file = Path(filter_file)
+    old_filtered = noise.load_filter_list(filter_file)
+    shots = sorted([int(f.stem) - 1 for f in input_dir.iterdir() if f.suffix == ".png"])
+    tmp_filtered = {index: shots}
+    new_filtered = noise.merge_filter_lists(old_filtered, tmp_filtered)
+    with filter_file.open("w") as f:
+        json.dump(new_filtered, f)
+
+
+@click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file containing the dA or dCD data to be filtered.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("--fit-dir", required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True), help="The directory containing the global fits.")
+@click.option("-s", "--scale", default=1.0, type=click.FLOAT, help="The number of standard deviations that act as the threshold for filtering.")
+def filter_from_fits(data_file, filter_file, fit_dir, scale):
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    fit_dir = Path(fit_dir)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    fits, t = core.load_dir_into_arr(fit_dir)
+    filtered = noise.filter_from_fits(data, fits, t, scale)
+    if filter_file.exists():
+        old_filtered = noise.load_filter_list(filter_file)
+        filtered = noise.merge_filter_lists(filtered, old_filtered)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The absorption spectrometer file to process.")
+def clean_abs(input_file):
+    input_file = Path(input_file)
+    with input_file.open("r") as infile:
+        reader = csv.reader(infile, delimiter=",")
+        wls = []
+        abs_data = []
+        for i, row in enumerate(reader):
+            if i in [0, 1]:
+                continue
+            try:
+                wls.append(int(row[0]))
+                abs_data.append(float(row[1]))
+            except (ValueError, IndexError):
+                break
+        wls = reversed(wls)
+        baseline = np.mean(abs_data[:15])
+        abs_data = reversed(abs_data)
+        abs_data = [x - baseline for x in abs_data]
+    with input_file.open("w", newline="\n") as outfile:
+        writer = csv.writer(outfile)
+        for w, a in zip(wls, abs_data):
+            writer.writerow([w, a])
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscilloscope output file to process.")
+def clean_scope(input_file):
+    input_file = Path(input_file)
+    rows = []
+    with input_file.open("r") as infile:
+        for row in csv.reader(infile, delimiter=","):
+            rows.append(f"{row[3]},{row[4].strip()}")
+    with input_file.open("w") as outfile:
+        outfile.write("\n".join(rows))
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -971,3 +1080,8 @@ cli.add_command(chi2)
 cli.add_command(plot_dir)
 cli.add_command(plot_gfit)
 cli.add_command(plot_compared)
+cli.add_command(add_to_filter)
+cli.add_command(filter_from_fits)
+cli.add_command(clean_abs)
+cli.add_command(clean_scope)
+cli.add_command(incremental_filter)
