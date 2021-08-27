@@ -843,6 +843,25 @@ def int_filter(data_file, filter_file, scale, start, stop):
 
 
 @click.command()
+@click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to examine for noise rejection.")
+@click.option("-f", "--filter-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store a list of rejected shots in. If this file exists, the contents are merged with the results of this filter.")
+@click.option("-t", "--threshold", default=1e-5, type=click.FLOAT, help="The threshold for when to stop throwing away bad shots.")
+def incremental_filter(data_file, filter_file, threshold):
+    data_file = Path(data_file)
+    filter_file = Path(filter_file)
+    with h5py.File(data_file, "r") as infile:
+        data = np.empty_like(infile["data"])
+        infile["data"].read_direct(data, np.s_[:, :, :], np.s_[:, :, :])
+    if filter_file.exists():
+        filtered = noise.load_filter_list(filter_file)
+    else:
+        filtered = {x: [] for x in range(data.shape[2])}
+    filtered = noise.incremental_filter(data, filtered, threshold)
+    with filter_file.open("w") as f:
+        json.dump(filtered, f)
+
+
+@click.command()
 @click.option("-d", "--data-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The dA or dCD file to average.")
 @click.option("-f", "--filter-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The file that contains the shots to exclude from the average.")
 @click.option("-o", "--output-file", required=True, type=click.Path(file_okay=True, dir_okay=False), help="The file to store the noise-rejected average in.")
@@ -1065,3 +1084,4 @@ cli.add_command(add_to_filter)
 cli.add_command(filter_from_fits)
 cli.add_command(clean_abs)
 cli.add_command(clean_scope)
+cli.add_command(incremental_filter)

@@ -2,6 +2,8 @@ import h5py
 import numpy as np
 import json
 from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
+from .compute import multi_exp
 from .core import POINTS, time_axis
 
 
@@ -139,3 +141,51 @@ def filter_from_fits(da, fits, collapsed_t, scale):
                 wl_rejections.append(shot_index)
         rejections[wl_index] = wl_rejections
     return rejections
+
+
+def incremental_filter(da, filtered, threshold):
+    """Build a list of rejected shots by examining how the noise changes
+    when the shot is eliminated.
+    """
+    _, shots, n_wls = da.shape
+    fit_after = 0.25
+    # 4 amplitudes followed by 4 lifetimes
+    guesses = [-1e-3, -1e-3, -1e-3, -1e-3, 0.25, 1.5, 30, 55]
+    bounds = ([-0.02, -0.02, -0.02, -0.02, 0.1, 1, 25, 45], [0.02, 0.02, 0.02, 0.02, 0.5, 4, 35, 70])
+    ts = time_axis()
+    da = da[ts > fit_after, :, :]
+    ts = ts[ts > fit_after]
+    for wl_index in range(n_wls-1):
+        previous_noise = 10
+        current_noise = 1
+        try:
+            keep = {x for x in range(shots)} - set(filtered[wl_index])
+            keep = {x: 0 for x in keep}
+        except KeyError:
+            keep = {x: 0 for x in range(shots)}
+        relative_noise = 1
+        avg = avg_specified_shots(da, wl_index, keep.keys())
+        while relative_noise > threshold:
+            avg = avg_specified_shots(da, wl_index, keep.keys())
+            fit_params, _ = curve_fit(multi_exp, ts, avg, p0=guesses, bounds=bounds)
+            fitted = multi_exp(ts, *fit_params)
+            previous_noise = current_noise
+            current_noise = np.std(fitted - avg)
+            relative_noise = abs(previous_noise - current_noise) / previous_noise
+            print(relative_noise)
+            for k in keep.keys():
+                residual_noise = np.std(da[:, k, wl_index] - avg)
+                keep[k] = residual_noise
+            ordered_by_noise = [k for k, v in sorted(keep.items(), key=lambda x: x[1])]
+            del keep[ordered_by_noise[-1]]
+        rejects = set(filtered[wl_index]).union({x for x in range(shots)} - set(keep.keys()))
+        filtered[wl_index] = sorted(list(rejects))
+    return filtered
+
+
+def avg_specified_shots(da, wl_idx, keep):
+    to_avg = np.empty((da.shape[0], len(keep)))
+    for i, shot_idx in enumerate(keep):
+        to_avg[:, i] = da[:, shot_idx, wl_idx]
+    avg = np.nanmean(to_avg, axis=1)
+    return avg
