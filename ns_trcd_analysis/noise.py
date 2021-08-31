@@ -92,21 +92,14 @@ def merge_filter_lists(a, b):
     """Merge two lists of shots to filter.
     """
     merged_keys = set(a.keys())
-    merged_keys.update(set(b.keys()))
+    merged_keys.union(set(b.keys()))
     merged_keys = sorted(list(merged_keys))
     out = {}
     for i in merged_keys:
-        x = a.get(i)
-        y = b.get(i)
-        if all([x, y]):
-            merged = set(x)
-            merged.update(set(y))
-            merged = sorted(list(merged))
-            out[i] = merged
-        elif x is not None:
-            out[i] = x
-        else:
-            out[i] = y
+        x = set(a.get(i))
+        y = set(b.get(i))
+        merged = x.union(y)
+        out[i] = sorted(list(merged))
     return out
 
 
