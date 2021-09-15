@@ -1018,6 +1018,7 @@ def filter_from_fits(data_file, filter_file, fit_dir, scale):
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The absorption spectrometer file to process.")
 def clean_abs(input_file):
+    """Format a CSV file from the UV-VIS absorption spectrometer."""
     input_file = Path(input_file)
     with input_file.open("r") as infile:
         reader = csv.reader(infile, delimiter=",")
@@ -1044,6 +1045,7 @@ def clean_abs(input_file):
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscilloscope output file to process.")
 def clean_scope(input_file):
+    """Format a CSV from the oscilloscope."""
     input_file = Path(input_file)
     rows = []
     with input_file.open("r") as infile:
