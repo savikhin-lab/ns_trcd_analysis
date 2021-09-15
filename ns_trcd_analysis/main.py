@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 import csv
 import json
+from functools import reduce
 from pathlib import Path
 from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter
@@ -1055,6 +1056,23 @@ def clean_scope(input_file):
         outfile.write("\n".join(rows))
 
 
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The filter file to examine.")
+@click.option("-s", "--shots", default=1500, type=click.INT, help="The number of shots at each wavelength.")
+def filter_stats(input_file, shots):
+    """Print statistics about the filter file."""
+    input_file = Path(input_file)
+    filtered = noise.load_filter_list(input_file)
+    total_filtered = reduce(lambda acc, s: acc + len(s), filtered.values(), 0)
+    frac_filtered = total_filtered / (shots * len(filtered.keys()))
+    print(f"Total fraction filtered: {frac_filtered * 100:.1f}%")
+    for i in range(29):
+        wl = 780 + 2.5 * i
+        rejected = len(filtered[i])
+        frac = rejected / shots
+        print(f"{i} [{wl:.1f}]: {rejected} ({frac * 100:.1f}%)")
+
+
 cli.add_command(assemble)
 cli.add_command(da)
 cli.add_command(cd)
@@ -1087,3 +1105,4 @@ cli.add_command(filter_from_fits)
 cli.add_command(clean_abs)
 cli.add_command(clean_scope)
 cli.add_command(incremental_filter)
+cli.add_command(filter_stats)
