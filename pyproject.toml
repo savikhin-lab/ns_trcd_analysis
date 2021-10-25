@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "ns_trcd_analysis"
-version = "0.31.0"
+version = "0.32.0"
 description = ""
 authors = ["Zach Mitchell <zmitchell@fastmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
 numpy = "^1.18.5"
-click = "^7.1.2"
+click = "^8.0.0"
 h5py = "^2.10.0"
 matplotlib = "^3.2.1"
 scipy = "^1.4.1"
