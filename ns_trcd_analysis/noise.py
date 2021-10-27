@@ -1,3 +1,4 @@
+import click
 import h5py
 import numpy as np
 import json
@@ -12,48 +13,53 @@ def reject_sigma(data, sigmas):
     """
     _, shots, num_wls = data.shape
     rejected = {}
-    for wl_idx in range(num_wls):
-        avg_stddev = data[:, :, wl_idx].std(axis=0).mean()
-        rejected_shots = list()
-        shot_noises = data[:, :, wl_idx].std(axis=0)
-        for shot_idx in range(shots):
-            if shot_noises[shot_idx] > (sigmas * avg_stddev):
-                rejected_shots.append(shot_idx)
-        rejected[wl_idx] = rejected_shots
+    with click.progressbar(range(num_wls), label="Rejecting by sigma") as wl_indices:
+        for wl_idx in wl_indices:
+            avg_stddev = data[:, :, wl_idx].std(axis=0).mean()
+            rejected_shots = list()
+            shot_noises = data[:, :, wl_idx].std(axis=0)
+            for shot_idx in range(shots):
+                if shot_noises[shot_idx] > (sigmas * avg_stddev):
+                    rejected_shots.append(shot_idx)
+            rejected[wl_idx] = rejected_shots
     return rejected
 
 
 def reject_fft(data, scale, upper, lower):
     """Reject shots that have too much noise in a given frequency band.
     """
+    t_points, shots, num_wls = data.shape
     ffts = np.absolute(np.fft.rfft(data, axis=0))
-    freqs = np.fft.fftfreq(data.shape[0], 0.02)[:(data.shape[0] // 2 + 1)]
+    freqs = np.fft.fftfreq(t_points, 0.02)[:(t_points // 2 + 1)]
     freqs[-1] *= -1  # Highest freq is always negative for whatever reason
     band_indices = (freqs > lower) & (freqs < upper)
     band_sums = np.apply_along_axis(lambda x: np.sum(x[band_indices]), 0, ffts)
     band_means = np.mean(band_sums, axis=0)
     rejected = {}
-    for wl in range(data.shape[2]):
-        rejected[wl] = []
-        for shot in range(data.shape[1]):
-            if band_sums[shot, wl] > scale * band_means[wl]:
-                rejected[wl].append(shot)
+    with click.progressbar(range(num_wls), label="Rejecting by FFT") as wl_indices:
+        for wl in wl_indices:
+            rejected[wl] = []
+            for shot in range(shots):
+                if band_sums[shot, wl] > scale * band_means[wl]:
+                    rejected[wl].append(shot)
     return rejected
 
 
 def reject_integral(data, scale, start, stop):
     """Reject shots based on the integral between a start and stop time.
     """
+    _, shots, num_wls = data.shape
     ts = time_axis()
     t_range = (ts > start) & (ts < stop)
     sums = np.absolute(np.sum(data[t_range, :, :], axis=0))
     means = np.mean(sums, axis=0)
     rejected = {}
-    for wl in range(data.shape[2]):
-        rejected[wl] = []
-        for shot in range(data.shape[1]):
-            if sums[shot, wl] < scale * means[wl]:
-                rejected[wl].append(shot)
+    with click.progressbar(range(num_wls), label="Rejecting by integral") as wl_indices:
+        for wl in wl_indices:
+            rejected[wl] = []
+            for shot in range(shots):
+                if sums[shot, wl] < scale * means[wl]:
+                    rejected[wl].append(shot)
     return rejected
 
 
@@ -67,9 +73,10 @@ def selective_average(infile, outfile, rejections):
         for shot_idx in rejections[wl_idx]:
             data[:, shot_idx, wl_idx] = 0
     average = data.mean(axis=1)
-    for wl_idx in range(num_wls):
-        scale_factor = shots / (shots - len(rejections[wl_idx]))
-        average[:, wl_idx] *= scale_factor
+    with click.progressbar(range(num_wls), label="Averaging") as wl_indices:
+        for wl_idx in wl_indices:
+            scale_factor = shots / (shots - len(rejections[wl_idx]))
+            average[:, wl_idx] *= scale_factor
     with h5py.File(outfile, "w") as outfile:
         outfile.copy(infile["wavelengths"], "wavelengths")
         outfile.create_dataset("average", data=average)
@@ -92,21 +99,14 @@ def merge_filter_lists(a, b):
     """Merge two lists of shots to filter.
     """
     merged_keys = set(a.keys())
-    merged_keys.update(set(b.keys()))
+    merged_keys.union(set(b.keys()))
     merged_keys = sorted(list(merged_keys))
     out = {}
     for i in merged_keys:
-        x = a.get(i)
-        y = b.get(i)
-        if all([x, y]):
-            merged = set(x)
-            merged.update(set(y))
-            merged = sorted(list(merged))
-            out[i] = merged
-        elif x is not None:
-            out[i] = x
-        else:
-            out[i] = y
+        x = set(a.get(i))
+        y = set(b.get(i))
+        merged = x.union(y)
+        out[i] = sorted(list(merged))
     return out
 
 
@@ -155,31 +155,31 @@ def incremental_filter(da, filtered, threshold):
     ts = time_axis()
     da = da[ts > fit_after, :, :]
     ts = ts[ts > fit_after]
-    for wl_index in range(n_wls-1):
-        previous_noise = 10
-        current_noise = 1
-        try:
-            keep = {x for x in range(shots)} - set(filtered[wl_index])
-            keep = {x: 0 for x in keep}
-        except KeyError:
-            keep = {x: 0 for x in range(shots)}
-        relative_noise = 1
-        avg = avg_specified_shots(da, wl_index, keep.keys())
-        while relative_noise > threshold:
+    with click.progressbar(range(n_wls-1), label="Filtering incrementally") as wl_indices:
+        for wl_index in wl_indices:
+            previous_noise = 10
+            current_noise = 1
+            try:
+                keep = {x for x in range(shots)} - set(filtered[wl_index])
+                keep = {x: 0 for x in keep}
+            except KeyError:
+                keep = {x: 0 for x in range(shots)}
+            relative_noise = 1
             avg = avg_specified_shots(da, wl_index, keep.keys())
-            fit_params, _ = curve_fit(multi_exp, ts, avg, p0=guesses, bounds=bounds)
-            fitted = multi_exp(ts, *fit_params)
-            previous_noise = current_noise
-            current_noise = np.std(fitted - avg)
-            relative_noise = abs(previous_noise - current_noise) / previous_noise
-            print(relative_noise)
-            for k in keep.keys():
-                residual_noise = np.std(da[:, k, wl_index] - avg)
-                keep[k] = residual_noise
-            ordered_by_noise = [k for k, v in sorted(keep.items(), key=lambda x: x[1])]
-            del keep[ordered_by_noise[-1]]
-        rejects = set(filtered[wl_index]).union({x for x in range(shots)} - set(keep.keys()))
-        filtered[wl_index] = sorted(list(rejects))
+            while relative_noise > threshold:
+                avg = avg_specified_shots(da, wl_index, keep.keys())
+                fit_params, _ = curve_fit(multi_exp, ts, avg, p0=guesses, bounds=bounds)
+                fitted = multi_exp(ts, *fit_params)
+                previous_noise = current_noise
+                current_noise = np.std(fitted - avg)
+                relative_noise = abs(previous_noise - current_noise) / previous_noise
+                for k in keep.keys():
+                    residual_noise = np.std(da[:, k, wl_index] - avg)
+                    keep[k] = residual_noise
+                ordered_by_noise = [k for k, v in sorted(keep.items(), key=lambda x: x[1])]
+                del keep[ordered_by_noise[-1]]
+            rejects = set(filtered[wl_index]).union({x for x in range(shots)} - set(keep.keys()))
+            filtered[wl_index] = sorted(list(rejects))
     return filtered
 
 

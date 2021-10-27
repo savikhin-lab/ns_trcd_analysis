@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 import csv
 import json
+from functools import reduce
 from pathlib import Path
 from scipy.optimize import minimize_scalar
 from scipy.signal import savgol_filter
@@ -1018,6 +1019,7 @@ def filter_from_fits(data_file, filter_file, fit_dir, scale):
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The absorption spectrometer file to process.")
 def clean_abs(input_file):
+    """Format a CSV file from the UV-VIS absorption spectrometer."""
     input_file = Path(input_file)
     with input_file.open("r") as infile:
         reader = csv.reader(infile, delimiter=",")
@@ -1044,6 +1046,7 @@ def clean_abs(input_file):
 @click.command()
 @click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The oscilloscope output file to process.")
 def clean_scope(input_file):
+    """Format a CSV from the oscilloscope."""
     input_file = Path(input_file)
     rows = []
     with input_file.open("r") as infile:
@@ -1051,6 +1054,23 @@ def clean_scope(input_file):
             rows.append(f"{row[3]},{row[4].strip()}")
     with input_file.open("w") as outfile:
         outfile.write("\n".join(rows))
+
+
+@click.command()
+@click.option("-i", "--input-file", required=True, type=click.Path(exists=True, file_okay=True, dir_okay=False), help="The filter file to examine.")
+@click.option("-s", "--shots", default=1500, type=click.INT, help="The number of shots at each wavelength.")
+def filter_stats(input_file, shots):
+    """Print statistics about the filter file."""
+    input_file = Path(input_file)
+    filtered = noise.load_filter_list(input_file)
+    total_filtered = reduce(lambda acc, s: acc + len(s), filtered.values(), 0)
+    frac_filtered = total_filtered / (shots * len(filtered.keys()))
+    print(f"Total fraction filtered: {frac_filtered * 100:.1f}%")
+    for i in range(29):
+        wl = 780 + 2.5 * i
+        rejected = len(filtered[i])
+        frac = rejected / shots
+        print(f"{i} [{wl:.1f}]: {rejected} ({frac * 100:.1f}%)")
 
 
 cli.add_command(assemble)
@@ -1085,3 +1105,4 @@ cli.add_command(filter_from_fits)
 cli.add_command(clean_abs)
 cli.add_command(clean_scope)
 cli.add_command(incremental_filter)
+cli.add_command(filter_stats)

@@ -107,7 +107,7 @@ def save_da_shots_as_txt(outdir, ds, wl_idx):
             save_data = np.empty((points, 2))
             save_data[:, 0] = ts
             save_data[:, 1] = tmp[:, shot_idx, wl_idx]
-            filename = f"{shot_idx+1:03d}.txt"
+            filename = f"{shot_idx:04d}.txt"
             filepath = outdir / filename
             np.savetxt(filepath, save_data, delimiter=",")
     return
@@ -127,7 +127,7 @@ def save_raw_shots_as_txt(outdir, ds, wl_idx, chan, pump_idx):
             save_data = np.empty((points, 2))
             save_data[:, 0] = ts
             save_data[:, 1] = tmp[:, chan.value, shot_idx, wl_idx, pump_idx]
-            filename = f"{shot_idx+1:03d}.txt"
+            filename = f"{shot_idx:04d}.txt"
             filepath = outdir / filename
             np.savetxt(filepath, save_data, delimiter=",")
     return
